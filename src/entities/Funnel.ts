@@ -1,18 +1,38 @@
 import { CONFIG, UI } from '../config/constants.js';
 
-export default class Funnel {
-  constructor(scene) {
+import type { Conveyor } from './Conveyor.js';
+import type { Marble } from './Marble.js';
+
+interface FunnelSlot {
+  entryX: number;
+  sequence: number;
+}
+
+interface FunnelParticle {
+  marble: Marble;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  sequence: number;
+}
+
+export class Funnel {
+  readonly scene: Phaser.Scene;
+  readonly graphics: Phaser.GameObjects.Graphics;
+  particles: FunnelParticle[] = [];
+  reservedMarbles = new Set<Marble>();
+  isDraining = false;
+  private _sequence = 0;
+
+  constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.particles = [];
-    this.reservedMarbles = new Set();
-    this.isDraining = false;
-    this._sequence = 0;
     this.graphics = scene.add.graphics();
     this.graphics.setDepth(20);
     this.render();
   }
 
-  render() {
+  render(): void {
     const area = CONFIG.FUNNEL_AREA;
     const topLeft = { x: area.x, y: area.y + 10 };
     const topRight = { x: area.x + area.width, y: area.y + 10 };
@@ -48,64 +68,65 @@ export default class Funnel {
       area.y + area.height - 8,
       area.width * 0.16,
       16,
-      8
+      8,
     );
   }
 
-  reserveSlot(marble) {
+  reserveSlot(marble: Marble): FunnelSlot {
     this._prune();
 
     this.reservedMarbles.add(marble);
     const sequence = this._sequence;
-    const entryX = this._entryXs()[sequence % this._entryXs().length];
+    const entryXs = this._entryXs();
+    const entryX = entryXs[sequence % entryXs.length]!;
     this._sequence += 1;
     marble.funnelSlotIndex = sequence;
 
     return { entryX, sequence };
   }
 
-  dropMarble(marble, slot) {
+  dropMarble(marble: Marble, slot: FunnelSlot): void {
     if (!slot || marble.state === 'destroyed') return;
     this.reservedMarbles.delete(marble);
-    this.scene.tweens.killTweensOf(marble.sprite);
+    if (marble.sprite) this.scene.tweens.killTweensOf(marble.sprite);
 
     marble.state = 'in-funnel-physics';
-    const particle = {
+    const particle: FunnelParticle = {
       marble,
       x: slot.entryX,
       y: CONFIG.FUNNEL_AREA.y + CONFIG.FUNNEL_BUFFER.MOUTH_Y_OFFSET,
       vx: 0,
       vy: CONFIG.FUNNEL_BUFFER.ENTRY_SPEED,
-      sequence: slot.sequence
+      sequence: slot.sequence,
     };
     this.particles.push(particle);
     marble.setPositionDirect(particle.x, particle.y);
   }
 
-  update(conveyor, dt = 16) {
+  update(conveyor: Conveyor | undefined, dt = 16): void {
     this._simulate(dt);
     this._tryDrain(conveyor);
   }
 
-  count() {
+  count(): number {
     this._prune();
     return this.reservedMarbles.size + this.particles.length + (this.isDraining ? 1 : 0);
   }
 
-  getMouthPosition(slot) {
+  getMouthPosition(slot: FunnelSlot | null | undefined): { x: number; y: number } {
     return {
       x: slot?.entryX ?? this._centerX(),
-      y: CONFIG.FUNNEL_AREA.y + CONFIG.FUNNEL_BUFFER.MOUTH_Y_OFFSET
+      y: CONFIG.FUNNEL_AREA.y + CONFIG.FUNNEL_BUFFER.MOUTH_Y_OFFSET,
     };
   }
 
-  destroy() {
-    this.graphics?.destroy();
+  destroy(): void {
+    this.graphics.destroy();
     this.particles = [];
     this.reservedMarbles.clear();
   }
 
-  _simulate(dtMs) {
+  private _simulate(dtMs: number): void {
     this._prune();
     if (this.particles.length === 0) return;
 
@@ -127,7 +148,7 @@ export default class Funnel {
     }
   }
 
-  _integrateParticle(particle, dt) {
+  private _integrateParticle(particle: FunnelParticle, dt: number): void {
     const physics = CONFIG.FUNNEL_BUFFER;
     particle.vy += physics.GRAVITY * dt;
 
@@ -142,26 +163,29 @@ export default class Funnel {
     particle.y += particle.vy * dt;
   }
 
-  _collideWalls(particle) {
+  private _collideWalls(particle: FunnelParticle): void {
     const area = CONFIG.FUNNEL_AREA;
     const leftWall = {
       ax: area.x,
       ay: area.y + 10,
       bx: area.x + area.width * 0.42,
-      by: area.y + area.height - 10
+      by: area.y + area.height - 10,
     };
     const rightWall = {
       ax: area.x + area.width,
       ay: area.y + 10,
       bx: area.x + area.width * 0.58,
-      by: area.y + area.height - 10
+      by: area.y + area.height - 10,
     };
 
     this._collideLine(particle, leftWall);
     this._collideLine(particle, rightWall);
   }
 
-  _collideLine(particle, line) {
+  private _collideLine(
+    particle: FunnelParticle,
+    line: { ax: number; ay: number; bx: number; by: number },
+  ): void {
     const radius = CONFIG.MARBLE_RADIUS;
     const vx = line.bx - line.ax;
     const vy = line.by - line.ay;
@@ -205,7 +229,7 @@ export default class Funnel {
     }
   }
 
-  _collideFloor(particle) {
+  private _collideFloor(particle: FunnelParticle): void {
     const y = this._floorY();
     if (particle.y <= y) return;
 
@@ -214,15 +238,15 @@ export default class Funnel {
     particle.vx *= CONFIG.FUNNEL_BUFFER.FLOOR_FRICTION;
   }
 
-  _collideParticles() {
+  private _collideParticles(): void {
     const radius = CONFIG.MARBLE_RADIUS;
     const minDistance = radius * 2;
     const restitution = CONFIG.FUNNEL_BUFFER.BALL_RESTITUTION;
 
     for (let i = 0; i < this.particles.length; i += 1) {
       for (let j = i + 1; j < this.particles.length; j += 1) {
-        const a = this.particles[i];
-        const b = this.particles[j];
+        const a = this.particles[i]!;
+        const b = this.particles[j]!;
         let dx = b.x - a.x;
         let dy = b.y - a.y;
         let distance = Math.hypot(dx, dy);
@@ -257,7 +281,7 @@ export default class Funnel {
     }
   }
 
-  _tryDrain(conveyor) {
+  private _tryDrain(conveyor: Conveyor | undefined): void {
     if (this.isDraining || !conveyor || conveyor.isPaused) return;
     this._prune();
 
@@ -265,7 +289,7 @@ export default class Funnel {
     if (!particle) return;
 
     const entry = conveyor.reserveEntrySlot({
-      maxDistance: CONFIG.FUNNEL_BUFFER.EXIT_TOLERANCE
+      maxDistance: CONFIG.FUNNEL_BUFFER.EXIT_TOLERANCE,
     });
     if (!entry) return;
 
@@ -285,30 +309,30 @@ export default class Funnel {
         conveyor.acceptMarble(marble, entry.slotIndex);
         this.isDraining = false;
         this._tryDrain(conveyor);
-      }
+      },
     );
   }
 
-  _nextDrainableParticle() {
+  private _nextDrainableParticle(): FunnelParticle | null {
     const readyY = this._floorY() - CONFIG.MARBLE_RADIUS * 0.35;
     return this.particles
       .filter((particle) => particle.y >= readyY)
-      .sort((a, b) => a.sequence - b.sequence)[0] || null;
+      .sort((a, b) => a.sequence - b.sequence)[0] ?? null;
   }
 
-  _removeParticle(particle) {
+  private _removeParticle(particle: FunnelParticle): void {
     const index = this.particles.indexOf(particle);
     if (index !== -1) this.particles.splice(index, 1);
   }
 
-  _shouldCancelDrain(marble, conveyor, entry) {
-    if (!this.scene.isEnding && marble.state !== 'destroyed') return false;
+  private _shouldCancelDrain(marble: Marble, conveyor: Conveyor, entry: { slotIndex: number }): boolean {
+    if (!(this.scene as { isEnding?: boolean }).isEnding && marble.state !== 'destroyed') return false;
     conveyor.releaseReservedSlot(entry.slotIndex);
     this.isDraining = false;
     return true;
   }
 
-  _entryXs() {
+  private _entryXs(): number[] {
     const area = CONFIG.FUNNEL_AREA;
     const centerX = this._centerX();
     return [
@@ -320,21 +344,21 @@ export default class Funnel {
       centerX - 22,
       centerX + 22,
       area.x + area.width * 0.28,
-      area.x + area.width * 0.72
+      area.x + area.width * 0.72,
     ];
   }
 
-  _floorY() {
+  private _floorY(): number {
     const area = CONFIG.FUNNEL_AREA;
     return area.y + area.height - CONFIG.MARBLE_RADIUS - 4;
   }
 
-  _centerX() {
+  private _centerX(): number {
     const area = CONFIG.FUNNEL_AREA;
     return area.x + area.width / 2;
   }
 
-  _prune() {
+  private _prune(): void {
     for (const marble of [...this.reservedMarbles]) {
       if (!marble || marble.state === 'destroyed') this.reservedMarbles.delete(marble);
     }

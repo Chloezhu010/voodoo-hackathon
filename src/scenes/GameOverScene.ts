@@ -1,18 +1,28 @@
 import { CONFIG, UI } from '../config/constants.js';
 import { addBubbleButton, addOutlinedText, drawBubblePanel, drawSkyBackground } from '../ui/casualStyle.js';
 
-export default class GameOverScene extends Phaser.Scene {
+interface GameOverSceneData {
+  result?: 'win' | 'lose';
+  levelId?: number;
+  fromEditor?: boolean;
+}
+
+export class GameOverScene extends Phaser.Scene {
+  private result: 'win' | 'lose' = 'lose';
+  private levelId = 1;
+  private fromEditor = false;
+
   constructor() {
     super('GameOverScene');
   }
 
-  init(data = {}) {
-    this.result = data.result || 'lose';
-    this.levelId = data.levelId || 1;
+  init(data: GameOverSceneData = {}): void {
+    this.result = data.result ?? 'lose';
+    this.levelId = data.levelId ?? 1;
     this.fromEditor = Boolean(data.fromEditor);
   }
 
-  create() {
+  create(): void {
     drawSkyBackground(this);
 
     const panel = this.add.graphics();
@@ -21,31 +31,25 @@ export default class GameOverScene extends Phaser.Scene {
       stroke: UI.BLUE_STROKE,
       strokeWidth: 7,
       shadowOffset: 12,
-      highlightAlpha: 0.4
+      highlightAlpha: 0.4,
     });
 
     const isWin = this.result === 'win';
     this._drawBadge(isWin);
 
-    addOutlinedText(
-      this,
-      CONFIG.GAME_WIDTH / 2,
-      492,
-      isWin ? 'LEVEL CLEAR!' : 'OUT OF SPACE!',
-      {
-        fontSize: isWin ? '48px' : '44px',
-        color: isWin ? '#ffe34a' : '#ff8ca9',
-        stroke: isWin ? '#d56d11' : '#a84170',
-        strokeThickness: 7,
-        shadowY: 4,
-        shadowColor: isWin ? '#9f5510' : '#77315a'
-      }
-    );
+    addOutlinedText(this, CONFIG.GAME_WIDTH / 2, 492, isWin ? 'LEVEL CLEAR!' : 'OUT OF SPACE!', {
+      fontSize: isWin ? '48px' : '44px',
+      color: isWin ? '#ffe34a' : '#ff8ca9',
+      stroke: isWin ? '#d56d11' : '#a84170',
+      strokeThickness: 7,
+      shadowY: 4,
+      shadowColor: isWin ? '#9f5510' : '#77315a',
+    });
 
     this.add.text(CONFIG.GAME_WIDTH / 2, 558, isWin ? 'Boxes cleared' : 'The conveyor is full', {
       fontSize: '26px',
       color: UI.DARK_TEXT,
-      fontStyle: 'bold'
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
     const primaryLabel = this.fromEditor ? 'BACK TO EDITOR' : 'RETRY';
@@ -53,7 +57,7 @@ export default class GameOverScene extends Phaser.Scene {
       fill: UI.ACCENT,
       dark: UI.ACCENT_DARK,
       textStroke: '#b55a10',
-      fontSize: primaryLabel.length > 8 ? '28px' : '36px'
+      fontSize: primaryLabel.length > 8 ? '28px' : '36px',
     });
     primaryButton.on('pointerup', () => {
       if (this.fromEditor) {
@@ -66,14 +70,14 @@ export default class GameOverScene extends Phaser.Scene {
     const menuButton = addBubbleButton(this, CONFIG.GAME_WIDTH / 2, 780, 390, 82, 'MENU', {
       fill: UI.PRIMARY,
       dark: UI.PRIMARY_DARK,
-      fontSize: '30px'
+      fontSize: '30px',
     });
     menuButton.on('pointerup', () => {
       this.scene.start(this.fromEditor ? 'EditorScene' : 'LevelSelectScene');
     });
   }
 
-  _drawBadge(isWin) {
+  private _drawBadge(isWin: boolean): void {
     const g = this.add.graphics();
     const cx = CONFIG.GAME_WIDTH / 2;
     const y = 410;
@@ -93,7 +97,7 @@ export default class GameOverScene extends Phaser.Scene {
       stroke: isWin ? '#b55a10' : '#8b2854',
       strokeThickness: 6,
       shadowY: 3,
-      shadowColor: isWin ? '#9f5510' : '#77315a'
+      shadowColor: isWin ? '#9f5510' : '#77315a',
     });
   }
 }

@@ -1,11 +1,68 @@
 import { CONFIG, UI } from '../config/constants.js';
+
 import { attachHitZone } from './hitZones.js';
 
-export function colorToCss(color) {
+interface TextOptions {
+  fontSize?: string;
+  color?: string;
+  align?: string;
+  wordWrap?: Phaser.Types.GameObjects.Text.TextWordWrap;
+  originX?: number;
+  originY?: number;
+  stroke?: string;
+  strokeThickness?: number;
+  shadowX?: number;
+  shadowY?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  depth?: number;
+}
+
+interface PanelOptions {
+  shadowOffset?: number;
+  shadowColor?: number;
+  shadowAlpha?: number;
+  fill?: number;
+  alpha?: number;
+  highlight?: number;
+  highlightAlpha?: number;
+  strokeWidth?: number;
+  stroke?: number;
+  strokeAlpha?: number;
+}
+
+interface ButtonOptions {
+  radius?: number;
+  fill?: number;
+  dark?: number;
+  textColor?: string;
+  highlight?: number;
+  highlightAlpha?: number;
+  strokeWidth?: number;
+  stroke?: number;
+  strokeAlpha?: number;
+  fontSize?: string;
+  textStroke?: string;
+  textStrokeThickness?: number;
+  depth?: number;
+}
+
+interface HudPillOptions {
+  fill?: number;
+  dark?: number;
+  fontSize?: string;
+  depth?: number;
+}
+
+export interface LabelContainer extends Phaser.GameObjects.Container {
+  labelText: Phaser.GameObjects.Text;
+}
+
+export function colorToCss(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
 }
 
-export function drawSkyBackground(scene) {
+export function drawSkyBackground(scene: Phaser.Scene): Phaser.GameObjects.Graphics {
   scene.cameras.main.setBackgroundColor(colorToCss(UI.BACKGROUND));
   const g = scene.add.graphics();
   g.setDepth(-100);
@@ -14,22 +71,47 @@ export function drawSkyBackground(scene) {
   return g;
 }
 
-export function addOutlinedText(scene, x, y, content, options = {}) {
-  const text = scene.add.text(x, y, content, {
-    fontSize: options.fontSize || '34px',
-    color: options.color || UI.TEXT,
+export function addOutlinedText(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  content: string,
+  options: TextOptions = {},
+): Phaser.GameObjects.Text {
+  const style: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontSize: options.fontSize ?? '34px',
+    color: options.color ?? UI.TEXT,
     fontStyle: 'bold',
-    align: options.align || 'center',
-    wordWrap: options.wordWrap
+    align: options.align ?? 'center',
+  };
+  if (options.wordWrap) style.wordWrap = options.wordWrap;
+
+  const text = scene.add.text(x, y, content, {
+    ...style,
   }).setOrigin(options.originX ?? 0.5, options.originY ?? 0.5);
 
-  text.setStroke(options.stroke || colorToCss(UI.BLUE_STROKE), options.strokeThickness ?? 6);
-  text.setShadow(options.shadowX ?? 0, options.shadowY ?? 4, options.shadowColor || '#2f4c82', options.shadowBlur ?? 0, true, true);
-  if (Number.isFinite(options.depth)) text.setDepth(options.depth);
+  text.setStroke(options.stroke ?? colorToCss(UI.BLUE_STROKE), options.strokeThickness ?? 6);
+  text.setShadow(
+    options.shadowX ?? 0,
+    options.shadowY ?? 4,
+    options.shadowColor ?? '#2f4c82',
+    options.shadowBlur ?? 0,
+    true,
+    true,
+  );
+  if (Number.isFinite(options.depth)) text.setDepth(options.depth!);
   return text;
 }
 
-export function drawBubblePanel(graphics, x, y, width, height, radius = 28, options = {}) {
+export function drawBubblePanel(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius = 28,
+  options: PanelOptions = {},
+): void {
   const shadowOffset = options.shadowOffset ?? 8;
   graphics.fillStyle(options.shadowColor ?? UI.SOFT_SHADOW, options.shadowAlpha ?? 0.28);
   graphics.fillRoundedRect(x, y + shadowOffset, width, height, radius);
@@ -44,12 +126,20 @@ export function drawBubblePanel(graphics, x, y, width, height, radius = 28, opti
   graphics.strokeRoundedRect(x, y, width, height, radius);
 }
 
-export function addBubbleButton(scene, x, y, width, height, label, options = {}) {
-  const container = scene.add.container(x, y);
+export function addBubbleButton(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  options: ButtonOptions = {},
+): LabelContainer {
+  const container = scene.add.container(x, y) as LabelContainer;
   const radius = options.radius ?? Math.round(height * 0.32);
   const base = options.fill ?? UI.PRIMARY;
   const dark = options.dark ?? UI.PRIMARY_DARK;
-  const textColor = options.textColor || UI.TEXT;
+  const textColor = options.textColor ?? UI.TEXT;
   const g = scene.add.graphics();
 
   g.fillStyle(dark, 1);
@@ -62,20 +152,19 @@ export function addBubbleButton(scene, x, y, width, height, label, options = {})
   g.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
 
   const text = addOutlinedText(scene, 0, -1, label, {
-    fontSize: options.fontSize || (height >= 90 ? '38px' : '28px'),
+    fontSize: options.fontSize ?? (height >= 90 ? '38px' : '28px'),
     color: textColor,
-    stroke: options.textStroke || colorToCss(dark),
+    stroke: options.textStroke ?? colorToCss(dark),
     strokeThickness: options.textStrokeThickness ?? 5,
     shadowY: 2,
-    shadowColor: colorToCss(dark)
+    shadowColor: colorToCss(dark),
   });
   container.add([g, text]);
   container.labelText = text;
   container.setSize(width, height);
-  if (Number.isFinite(options.depth)) container.setDepth(options.depth);
-  attachHitZone(scene, container, width, height, {
-    depth: Number.isFinite(options.depth) ? options.depth + 1 : undefined
-  });
+  if (Number.isFinite(options.depth)) container.setDepth(options.depth!);
+  const hitZoneOptions = Number.isFinite(options.depth) ? { depth: options.depth! + 1 } : {};
+  attachHitZone(scene, container, width, height, hitZoneOptions);
 
   container.on('pointerover', () => {
     scene.tweens.add({ targets: container, scale: 1.045, duration: 110, ease: 'Back.easeOut' });
@@ -93,8 +182,16 @@ export function addBubbleButton(scene, x, y, width, height, label, options = {})
   return container;
 }
 
-export function addHudPill(scene, x, y, width, height, label, options = {}) {
-  const container = scene.add.container(x, y);
+export function addHudPill(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  options: HudPillOptions = {},
+): LabelContainer {
+  const container = scene.add.container(x, y) as LabelContainer;
   const g = scene.add.graphics();
   const radius = height / 2;
   const fill = options.fill ?? UI.PRIMARY;
@@ -110,14 +207,14 @@ export function addHudPill(scene, x, y, width, height, label, options = {}) {
   g.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
 
   const text = addOutlinedText(scene, 0, -1, label, {
-    fontSize: options.fontSize || '24px',
+    fontSize: options.fontSize ?? '24px',
     stroke: colorToCss(dark),
     strokeThickness: 4,
     shadowY: 2,
-    shadowColor: colorToCss(dark)
+    shadowColor: colorToCss(dark),
   });
   container.add([g, text]);
   container.labelText = text;
-  if (Number.isFinite(options.depth)) container.setDepth(options.depth);
+  if (Number.isFinite(options.depth)) container.setDepth(options.depth!);
   return container;
 }

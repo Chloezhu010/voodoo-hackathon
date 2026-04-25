@@ -1,21 +1,42 @@
-import { CONFIG } from '../config/constants.js';
 import { getColorDefinition } from '../config/colors.js';
+import { CONFIG } from '../config/constants.js';
+import type { ColorId } from '../sim/types.js';
 
-export default class Box {
-  constructor(scene, color, capacity = CONFIG.BOX_COLUMNS.BOX_CAPACITY) {
+import type { Marble } from './Marble.js';
+
+interface SlotMarker {
+  x: number;
+  y: number;
+}
+
+export interface ReservedBoxSlot {
+  box: Box;
+  slotIndex: number;
+  x: number;
+  y: number;
+}
+
+export class Box {
+  readonly scene: Phaser.Scene;
+  readonly color: ColorId;
+  readonly capacity: number;
+  current_count = 0;
+  visual_filled = 0;
+  reservedSlots: number[] = [];
+  readonly container: Phaser.GameObjects.Container;
+  slotMarkers: SlotMarker[] = [];
+  onVisualFull: (() => void) | null = null;
+
+  constructor(scene: Phaser.Scene, color: ColorId, capacity = CONFIG.BOX_COLUMNS.BOX_CAPACITY) {
     this.scene = scene;
     this.color = color;
     this.capacity = capacity;
-    this.current_count = 0;
-    this.visual_filled = 0;
-    this.reservedSlots = [];
-    this.onVisualFull = null;
     this.container = scene.add.container(0, 0);
     this.container.setDepth(90);
     this._render();
   }
 
-  _render() {
+  private _render(): void {
     const { BOX_WIDTH: width, BOX_HEIGHT: height, SLOT_RADIUS: radius } = CONFIG.BOX_COLUMNS;
     const color = getColorDefinition(this.color);
 
@@ -49,35 +70,35 @@ export default class Box {
     }
   }
 
-  canAccept(color) {
+  canAccept(color: ColorId): boolean {
     return this.color === color && this.current_count < this.capacity;
   }
 
-  reserveSlot() {
+  reserveSlot(): ReservedBoxSlot | null {
     if (this.current_count >= this.capacity) return null;
     const slotIdx = this.current_count;
-    const marker = this.slotMarkers[slotIdx];
+    const marker = this.slotMarkers[slotIdx]!;
     this.current_count += 1;
     this.reservedSlots.push(slotIdx);
     return {
       box: this,
       slotIndex: slotIdx,
       x: this.container.x + marker.x,
-      y: this.container.y + marker.y
+      y: this.container.y + marker.y,
     };
   }
 
-  isReservedFull() {
+  isReservedFull(): boolean {
     return this.current_count >= this.capacity;
   }
 
-  fillVisualSlot(marble) {
+  fillVisualSlot(marble: Marble | null | undefined): void {
     if (this.visual_filled >= this.capacity) return;
     const slotIdx = this.reservedSlots.length > 0
-      ? this.reservedSlots.shift()
+      ? this.reservedSlots.shift()!
       : this.visual_filled;
-    const marker = this.slotMarkers[slotIdx];
-    const color = getColorDefinition(marble?.color || this.color);
+    const marker = this.slotMarkers[slotIdx]!;
+    const color = getColorDefinition(marble?.color ?? this.color);
 
     const filled = this.scene.add.graphics();
     filled.fillStyle(0x23385f, 0.2);
@@ -95,7 +116,7 @@ export default class Box {
       targets: this.container,
       scale: { from: 1.08, to: 1 },
       duration: 150,
-      ease: 'Back.easeOut'
+      ease: 'Back.easeOut',
     });
 
     if (this.visual_filled >= this.capacity) {
@@ -105,7 +126,7 @@ export default class Box {
     }
   }
 
-  destroyWithAnimation(onComplete = null) {
+  destroyWithAnimation(onComplete: (() => void) | null = null): void {
     this.scene.tweens.add({
       targets: this.container,
       scale: 1.35,
@@ -115,22 +136,22 @@ export default class Box {
       onComplete: () => {
         this.container.destroy(true);
         if (onComplete) onComplete();
-      }
+      },
     });
   }
 
-  setPosition(x, y) {
+  setPosition(x: number, y: number): void {
     this.container.x = x;
     this.container.y = y;
   }
 
-  tweenPosition(x, y, duration = 300) {
+  tweenPosition(x: number, y: number, duration = 300): void {
     this.scene.tweens.add({
       targets: this.container,
       x,
       y,
       duration,
-      ease: 'Cubic.easeOut'
+      ease: 'Cubic.easeOut',
     });
   }
 }

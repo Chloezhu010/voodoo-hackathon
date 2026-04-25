@@ -1,40 +1,28 @@
 import { CONFIG, UI } from '../config/constants.js';
-import { attachHitZone } from '../ui/hitZones.js';
 import { addBubbleButton, addOutlinedText, drawBubblePanel, drawSkyBackground } from '../ui/casualStyle.js';
+import { attachHitZone } from '../ui/hitZones.js';
 
-const LEVELS = [
-  {
-    id: 1,
-    number: '01',
-    name: 'Tutorial',
-    difficulty: 'Easy',
-    stars: '★☆☆',
-    hook: 'Learn the basics'
-  },
-  {
-    id: 2,
-    number: '02',
-    name: 'Hidden Layers',
-    difficulty: 'Medium',
-    stars: '★★☆',
-    hook: "Reveal what's beneath"
-  },
-  {
-    id: 3,
-    number: '03',
-    name: 'Gravity Flip',
-    difficulty: 'Hard',
-    stars: '★★★',
-    hook: 'Twist the world'
-  }
+interface LevelEntry {
+  id: number;
+  number: string;
+  name: string;
+  difficulty: string;
+  stars: string;
+  hook: string;
+}
+
+const LEVELS: readonly LevelEntry[] = [
+  { id: 1, number: '01', name: 'Tutorial', difficulty: 'Easy', stars: '★☆☆', hook: 'Learn the basics' },
+  { id: 2, number: '02', name: 'Hidden Layers', difficulty: 'Medium', stars: '★★☆', hook: "Reveal what's beneath" },
+  { id: 3, number: '03', name: 'Gravity Flip', difficulty: 'Hard', stars: '★★★', hook: 'Twist the world' },
 ];
 
-export default class LevelSelectScene extends Phaser.Scene {
+export class LevelSelectScene extends Phaser.Scene {
   constructor() {
     super('LevelSelectScene');
   }
 
-  create() {
+  create(): void {
     drawSkyBackground(this);
 
     const back = addBubbleButton(this, 50, 50, 74, 70, '<', {
@@ -42,7 +30,7 @@ export default class LevelSelectScene extends Phaser.Scene {
       dark: UI.PRIMARY_DARK,
       fontSize: '40px',
       radius: 18,
-      depth: 20
+      depth: 20,
     });
     back.on('pointerup', () => this.scene.start('MenuScene'));
 
@@ -50,15 +38,16 @@ export default class LevelSelectScene extends Phaser.Scene {
       fontSize: '50px',
       stroke: '#3f5d96',
       strokeThickness: 7,
-      shadowY: 5
+      shadowY: 5,
     });
 
     [380, 620, 860].forEach((y, index) => {
-      this._makeLevelCard(CONFIG.GAME_WIDTH / 2, y, LEVELS[index]);
+      const level = LEVELS[index];
+      if (level) this._makeLevelCard(CONFIG.GAME_WIDTH / 2, y, level);
     });
   }
 
-  _makeLevelCard(x, y, level) {
+  private _makeLevelCard(x: number, y: number, level: LevelEntry): void {
     const width = 560;
     const height = 200;
     const container = this.add.container(x, y);
@@ -69,7 +58,7 @@ export default class LevelSelectScene extends Phaser.Scene {
       stroke: UI.BLUE_STROKE,
       strokeWidth: 5,
       shadowOffset: 9,
-      highlightAlpha: 0.36
+      highlightAlpha: 0.36,
     });
 
     const badge = this.add.graphics();
@@ -86,25 +75,19 @@ export default class LevelSelectScene extends Phaser.Scene {
       fontSize: '58px',
       stroke: '#6f3fb3',
       strokeThickness: 6,
-      shadowY: 3
+      shadowY: 3,
     });
 
     const title = this.add.text(-95, -52, level.name, {
-      fontSize: '34px',
-      color: UI.DARK_TEXT,
-      fontStyle: 'bold'
+      fontSize: '34px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
     const stars = this.add.text(-95, 3, level.stars, {
-      fontSize: '30px',
-      color: '#ffbe24',
-      fontStyle: 'bold'
+      fontSize: '30px', color: '#ffbe24', fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
     const hook = this.add.text(-95, 48, level.difficulty.toUpperCase(), {
-      fontSize: '22px',
-      color: UI.MUTED_TEXT,
-      fontStyle: 'bold'
+      fontSize: '22px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
     const arrow = addOutlinedText(this, 226, 0, '>', {
@@ -113,7 +96,7 @@ export default class LevelSelectScene extends Phaser.Scene {
       strokeThickness: 5,
       color: '#ffffff',
       shadowY: 2,
-      shadowColor: '#a5520d'
+      shadowColor: '#a5520d',
     });
     const arrowBg = this.add.graphics();
     arrowBg.fillStyle(UI.ACCENT_DARK, 1);
@@ -137,7 +120,7 @@ export default class LevelSelectScene extends Phaser.Scene {
       this.tweens.add({ targets: container, scaleX: 0.97, scaleY: 0.94, duration: 80, ease: 'Quad.easeOut' });
     });
     container.on('pointerup', () => {
-      console.log(`Starting level ${level.id}`);
+      console.info(`Starting level ${level.id}`);
       this.scene.start('GameScene', { levelId: level.id });
     });
   }

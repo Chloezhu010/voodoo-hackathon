@@ -1,23 +1,32 @@
 import { CONFIG, UI } from '../config/constants.js';
-import ConveyorTrack from '../systems/ConveyorTrack.js';
+import { ConveyorTrack } from '../sim/conveyorTrack.js';
+import type { ColorId } from '../sim/types.js';
 
-export default class Conveyor {
-  constructor(scene, speed = CONFIG.CONVEYOR.DEFAULT_SPEED) {
+import type { Marble } from './Marble.js';
+import type { OutputPort } from './OutputPort.js';
+
+export class Conveyor {
+  readonly scene: Phaser.Scene;
+  readonly track: ConveyorTrack;
+  speed: number;
+  marbles: Marble[] = [];
+  outputPorts: OutputPort[] = [];
+  isPaused = false;
+  private _overflowFired = false;
+  private _slotOffset = 0;
+  private _reservedSlots = new Set<number>();
+  slotCount = CONFIG.CONVEYOR.TOTAL_CAPACITY;
+  trackGraphics?: Phaser.GameObjects.Graphics;
+  slotGraphics?: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene, speed: number = CONFIG.CONVEYOR.DEFAULT_SPEED) {
     this.scene = scene;
     this.track = new ConveyorTrack();
     this.speed = speed;
-    this.marbles = [];
-    this.outputPorts = [];
-    this.isPaused = false;
-    this._overflowFired = false;
-    this._slotOffset = 0;
-    this._reservedSlots = new Set();
-    this.slotCount = CONFIG.CONVEYOR.TOTAL_CAPACITY;
-
     this._renderTrack();
   }
 
-  _renderTrack() {
+  private _renderTrack(): void {
     const graphics = this.scene.add.graphics();
     graphics.setDepth(35);
     this._strokeTrack(graphics, 52, UI.BLUE_STROKE, 0.95);
@@ -32,7 +41,7 @@ export default class Conveyor {
     this._drawSlots();
   }
 
-  _strokeTrack(graphics, width, color, alpha) {
+  private _strokeTrack(graphics: Phaser.GameObjects.Graphics, width: number, color: number, alpha: number): void {
     graphics.lineStyle(width, color, alpha);
     graphics.beginPath();
     const startT = 0.2;
@@ -46,45 +55,48 @@ export default class Conveyor {
     graphics.strokePath();
   }
 
-  registerOutputPort(port) {
+  registerOutputPort(port: OutputPort): void {
     this.outputPorts.push(port);
   }
 
-  reserveEntrySlot({ maxDistance = null } = {}) {
+  reserveEntrySlot({ maxDistance = null }: { maxDistance?: number | null } = {}): (
+    { slotIndex: number; x: number; y: number } | null
+  ) {
     const slotIndex = this._findEntrySlot(maxDistance);
     if (slotIndex === null) return null;
     this._reservedSlots.add(slotIndex);
     return {
       slotIndex,
-      ...this._slotPosition(slotIndex)
+      ...this._slotPosition(slotIndex),
     };
   }
 
-  releaseReservedSlot(slotIndex) {
+  releaseReservedSlot(slotIndex: number): void {
     if (Number.isInteger(slotIndex)) this._reservedSlots.delete(slotIndex);
   }
 
-  getEntryPosition() {
+  getEntryPosition(): { x: number; y: number } {
     const slotIndex = this._findEntrySlot();
     if (slotIndex === null) return this.track.positionAt(this.track.entryT);
     return this._slotPosition(slotIndex);
   }
 
-  acceptMarble(marble, reservedSlotIndex = null) {
+  acceptMarble(marble: Marble, reservedSlotIndex: number | null = null): boolean {
     const hasReservedSlot = Number.isInteger(reservedSlotIndex);
-    if (hasReservedSlot) this._reservedSlots.delete(reservedSlotIndex);
+    const reservedSlot = hasReservedSlot ? reservedSlotIndex as number : null;
+    if (reservedSlot !== null) this._reservedSlots.delete(reservedSlot);
 
     if (!hasReservedSlot && this.count() >= this.slotCount) {
       this._handleOverflow(marble);
       return false;
     }
 
-    let slotIndex = hasReservedSlot ? reservedSlotIndex : this._findEntrySlot();
-    if (!Number.isInteger(slotIndex) || !this._isSlotFree(slotIndex, marble)) {
+    let slotIndex = reservedSlot ?? this._findEntrySlot();
+    if (slotIndex === null || !this._isSlotFree(slotIndex, marble)) {
       slotIndex = this._findEntrySlot();
     }
 
-    if (!Number.isInteger(slotIndex)) {
+    if (slotIndex === null) {
       this._handleOverflow(marble);
       return false;
     }
@@ -95,22 +107,23 @@ export default class Conveyor {
     return true;
   }
 
-  rejectMarble(marble) {
+  rejectMarble(marble: Marble): void {
     this._handleOverflow(marble);
   }
 
-  _handleOverflow(marble) {
+  private _handleOverflow(marble: Marble | null): void {
     if (marble) marble.state = 'overflow-exit';
     if (marble?.sprite) {
+      const sprite = marble.sprite;
       this.scene.tweens.add({
-        targets: marble.sprite,
-        x: marble.sprite.x + Phaser.Math.Between(-8, 8),
+        targets: sprite,
+        x: sprite.x + Phaser.Math.Between(-8, 8),
         duration: 60,
         repeat: 4,
         yoyo: true,
         onComplete: () => {
-          marble.flyTo(marble.sprite.x, marble.sprite.y - 200, 400, 'Cubic.easeIn', () => marble.destroy());
-        }
+          marble.flyTo(sprite.x, sprite.y - 200, 400, 'Cubic.easeIn', () => marble.destroy());
+        },
       });
     } else if (marble) {
       marble.destroy();
@@ -122,7 +135,7 @@ export default class Conveyor {
     }
   }
 
-  update(dt) {
+  update(dt: number): void {
     if (this.isPaused) {
       this._drawSlots();
       return;
@@ -156,12 +169,12 @@ export default class Conveyor {
     this._checkDeadlock();
   }
 
-  _tDistance(a, b) {
+  private _tDistance(a: number, b: number): number {
     const distance = Math.abs(a - b);
     return Math.min(distance, 1 - distance);
   }
 
-  _dropMarble(marble, port) {
+  private _dropMarble(marble: Marble, port: OutputPort): void {
     const index = this.marbles.indexOf(marble);
     if (index !== -1) this.marbles.splice(index, 1);
     this._releaseMarbleSlot(marble);
@@ -180,7 +193,7 @@ export default class Conveyor {
     });
   }
 
-  _checkDeadlock() {
+  private _checkDeadlock(): void {
     if (this._overflowFired) return;
     const activeMarbles = this.marbles.filter((marble) => marble.state === 'on-conveyor');
     if (activeMarbles.length < this.slotCount) return;
@@ -194,7 +207,7 @@ export default class Conveyor {
     this._handleOverflow(null);
   }
 
-  magnetize(color) {
+  magnetize(color: ColorId): number {
     const matched = this.marbles.filter((marble) => (
       marble.state === 'on-conveyor' && marble.color === color
     ));
@@ -227,17 +240,17 @@ export default class Conveyor {
     return matched.length;
   }
 
-  setPaused(paused) {
+  setPaused(paused: boolean): void {
     this.isPaused = paused;
     this.trackGraphics?.setAlpha(paused ? 0.45 : 1);
     this.slotGraphics?.setAlpha(paused ? 0.35 : 1);
   }
 
-  count() {
+  count(): number {
     return this.marbles.length + this._reservedSlots.size;
   }
 
-  _drawSlots() {
+  private _drawSlots(): void {
     if (!this.slotGraphics) return;
     const occupied = this._usedSlots();
     const radius = CONFIG.MARBLE_RADIUS + 5;
@@ -255,27 +268,27 @@ export default class Conveyor {
     }
   }
 
-  _slotT(slotIndex) {
+  private _slotT(slotIndex: number): number {
     return ((slotIndex / this.slotCount + this._slotOffset) % 1 + 1) % 1;
   }
 
-  _slotPosition(slotIndex) {
+  private _slotPosition(slotIndex: number): { x: number; y: number } {
     return this.track.positionAt(this._slotT(slotIndex));
   }
 
-  _findEntrySlot(maxDistance = null) {
+  private _findEntrySlot(maxDistance: number | null = null): number | null {
     const slotIndex = this._nearestFreeSlotIndexForT(this.track.entryT);
     if (slotIndex === null) return null;
     if (
       Number.isFinite(maxDistance)
-      && this._tDistance(this._slotT(slotIndex), this.track.entryT) > maxDistance
+      && this._tDistance(this._slotT(slotIndex), this.track.entryT) > (maxDistance as number)
     ) {
       return null;
     }
     return slotIndex;
   }
 
-  _nearestFreeSlotIndexForT(t, marble) {
+  private _nearestFreeSlotIndexForT(t: number, marble: Marble | null = null): number | null {
     const slots = Array.from({ length: this.slotCount }, (_value, index) => index);
     slots.sort((a, b) => (
       this._tDistance(this._slotT(a), t) - this._tDistance(this._slotT(b), t)
@@ -283,15 +296,15 @@ export default class Conveyor {
     return slots.find((slotIndex) => this._isSlotFree(slotIndex, marble)) ?? null;
   }
 
-  _ensureSlotForMarble(marble) {
+  private _ensureSlotForMarble(marble: Marble): boolean {
     if (Number.isInteger(marble.slotIndex) && marble.slotIndex >= 0) return true;
     const slotIndex = this._nearestFreeSlotIndexForT(marble.t >= 0 ? marble.t : this.track.entryT, marble);
-    if (!Number.isInteger(slotIndex)) return false;
+    if (slotIndex === null) return false;
     marble.slotIndex = slotIndex;
     return true;
   }
 
-  _assignSlot(marble, slotIndex) {
+  private _assignSlot(marble: Marble, slotIndex: number): void {
     marble.state = 'on-conveyor';
     marble.slotIndex = slotIndex;
     marble.t = this._slotT(slotIndex);
@@ -299,11 +312,11 @@ export default class Conveyor {
     marble.setPositionDirect(pos.x, pos.y);
   }
 
-  _releaseMarbleSlot(marble) {
+  private _releaseMarbleSlot(marble: Marble): void {
     marble.slotIndex = -1;
   }
 
-  _isSlotFree(slotIndex, ignoreMarble = null) {
+  private _isSlotFree(slotIndex: number, ignoreMarble: Marble | null = null): boolean {
     if (this._reservedSlots.has(slotIndex)) return false;
     return !this.marbles.some((marble) => (
       marble !== ignoreMarble
@@ -312,7 +325,7 @@ export default class Conveyor {
     ));
   }
 
-  _usedSlots() {
+  private _usedSlots(): Set<number> {
     const used = new Set(this._reservedSlots);
     for (const marble of this.marbles) {
       if (marble.state === 'on-conveyor' && Number.isInteger(marble.slotIndex) && marble.slotIndex >= 0) {

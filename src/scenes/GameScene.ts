@@ -1,29 +1,60 @@
 import { CONFIG, UI } from '../config/constants.js';
-import Block from '../entities/Block.js';
-import BoxColumn from '../entities/BoxColumn.js';
-import Conveyor from '../entities/Conveyor.js';
-import Funnel from '../entities/Funnel.js';
-import Marble from '../entities/Marble.js';
-import OutputPort from '../entities/OutputPort.js';
-import BoardManager from '../systems/BoardManager.js';
-import LevelLoader from '../systems/LevelLoader.js';
+import { Block } from '../entities/Block.js';
+import { BoxColumn } from '../entities/BoxColumn.js';
+import { Conveyor } from '../entities/Conveyor.js';
+import { Funnel } from '../entities/Funnel.js';
+import { Marble } from '../entities/Marble.js';
+import { OutputPort } from '../entities/OutputPort.js';
+import { levelCacheKey, levelPathFor, validateLevel } from '../sim/levelLoader.js';
+import type { BoxColumn as BoxColumnConfig, LevelData } from '../sim/types.js';
+import { BoardManager } from '../systems/BoardManager.js';
 import {
   addBubbleButton,
   addHudPill,
   addOutlinedText,
   drawBubblePanel,
-  drawSkyBackground
+  drawSkyBackground,
 } from '../ui/casualStyle.js';
 
-export default class GameScene extends Phaser.Scene {
+interface GameSceneData {
+  levelId?: number;
+  fromEditor?: boolean;
+}
+
+declare global {
+  interface Window {
+    _customLevelData?: LevelData;
+  }
+}
+
+export class GameScene extends Phaser.Scene {
+  levelId = 1;
+  fromEditor = false;
+  levelKey = '';
+  _inputLocked = false;
+  isEnding = false;
+  private _debugEnabled = false;
+  private _debugText: Phaser.GameObjects.Text | null = null;
+  private _debugTimer?: Phaser.Time.TimerEvent;
+  marbles: Marble[] = [];
+  levelData!: LevelData;
+  funnel?: Funnel;
+  conveyor?: Conveyor;
+  boxColumns: BoxColumn[] = [];
+  outputPorts: OutputPort[] = [];
+  blocks: Block[] = [];
+  boardManager?: BoardManager;
+  conveyorLabel?: Phaser.GameObjects.Text;
+  private _createGeneration = 0;
+
   constructor() {
     super('GameScene');
   }
 
-  init(data = {}) {
-    this.levelId = data.levelId || 1;
+  init(data: GameSceneData = {}): void {
+    this.levelId = data.levelId ?? 1;
     this.fromEditor = Boolean(data.fromEditor);
-    this.levelKey = LevelLoader.cacheKey(this.levelId);
+    this.levelKey = levelCacheKey(this.levelId);
     this._inputLocked = false;
     this.isEnding = false;
     this._debugEnabled = false;
@@ -31,22 +62,22 @@ export default class GameScene extends Phaser.Scene {
     this.marbles = [];
   }
 
-  preload() {
+  preload(): void {
     if (this.fromEditor) return;
     if (!this.cache.json.exists(this.levelKey)) {
-      this.load.json(this.levelKey, LevelLoader.pathFor(this.levelId));
+      this.load.json(this.levelKey, levelPathFor(this.levelId));
     }
   }
 
-  create() {
-    const levelData = this.fromEditor
+  create(): void {
+    const levelData: LevelData | undefined = this.fromEditor
       ? window._customLevelData
       : this.cache.json.get(this.levelKey);
 
     try {
-      this.levelData = LevelLoader.validate(levelData);
+      this.levelData = validateLevel(levelData);
     } catch (error) {
-      this._drawLoadError(error);
+      this._drawLoadError(error as Error);
       return;
     }
 
@@ -55,14 +86,11 @@ export default class GameScene extends Phaser.Scene {
     this._drawHUD();
 
     this.funnel = new Funnel(this);
-    this.conveyor = new Conveyor(
-      this,
-      this.levelData.conveyor_speed || CONFIG.CONVEYOR.DEFAULT_SPEED
-    );
+    this.conveyor = new Conveyor(this, this.levelData.conveyor_speed ?? CONFIG.CONVEYOR.DEFAULT_SPEED);
     this.boxColumns = this._createBoxColumns(this.levelData.box_columns);
     this.outputPorts = this.boxColumns.map((boxColumn, index) => {
-      const port = new OutputPort(this, this.conveyor.track, index, boxColumn);
-      this.conveyor.registerOutputPort(port);
+      const port = new OutputPort(this, this.conveyor!.track, index, boxColumn);
+      this.conveyor!.registerOutputPort(port);
       boxColumn.outputPort = port;
       return port;
     });
@@ -76,35 +104,32 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('conveyor-overflow', this._onConveyorOverflow, this);
     this.events.on('column-cleared', this._onColumnCleared, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._shutdown, this);
-    this.input.keyboard.on('keydown-D', this._toggleDebugOverlay, this);
+    this.input.keyboard?.on('keydown-D', this._toggleDebugOverlay, this);
 
-    this._createGeneration = (this._createGeneration || 0) + 1;
+    this._createGeneration += 1;
 
     if (this.levelId === 1 && !this.fromEditor) {
-      this._showToast(
-        'Tap blocks to feed the conveyor. Boxes only accept their top color.',
-        3000
-      );
+      this._showToast('Tap blocks to feed the conveyor. Boxes only accept their top color.', 3000);
     }
   }
 
-  update(_time, delta) {
+  override update(_time: number, delta: number): void {
     this.conveyor?.update(delta);
     this.funnel?.update(this.conveyor, delta);
   }
 
-  _shutdown() {
+  private _shutdown(): void {
     this.events.off('block-tapped', this._onBlockTapped, this);
     this.events.off('conveyor-overflow', this._onConveyorOverflow, this);
     this.events.off('column-cleared', this._onColumnCleared, this);
-    this.input.keyboard.off('keydown-D', this._toggleDebugOverlay, this);
+    this.input.keyboard?.off('keydown-D', this._toggleDebugOverlay, this);
     this._debugTimer?.remove(false);
     this.funnel?.destroy();
-    this.blocks?.forEach((block) => block.destroy());
+    this.blocks.forEach((block) => block.destroy());
     this.blocks = [];
   }
 
-  _drawAreas() {
+  private _drawAreas(): void {
     const g = this.add.graphics();
     g.setDepth(0);
 
@@ -115,7 +140,7 @@ export default class GameScene extends Phaser.Scene {
       strokeWidth: 8,
       shadowOffset: 12,
       shadowAlpha: 0.32,
-      highlightAlpha: 0.22
+      highlightAlpha: 0.22,
     });
 
     g.fillStyle(0xe9f2ff, 1);
@@ -153,46 +178,40 @@ export default class GameScene extends Phaser.Scene {
         strokeWidth: 6,
         shadowOffset: 10,
         shadowAlpha: 0.22,
-        highlightAlpha: 0.2
-      }
+        highlightAlpha: 0.2,
+      },
     );
 
     const boxArea = CONFIG.BOX_COLUMNS.AREA;
     g.fillStyle(0x4969a1, 0.16);
-    g.fillRoundedRect(
-      boxArea.x,
-      boxArea.y - 22,
-      boxArea.width,
-      boxArea.height + 48,
-      22
-    );
+    g.fillRoundedRect(boxArea.x, boxArea.y - 22, boxArea.width, boxArea.height + 48, 22);
   }
 
-  _drawHUD() {
+  private _drawHUD(): void {
     const back = addBubbleButton(this, 48, 48, 80, 80, '<', {
       fill: UI.PRIMARY,
       dark: UI.PRIMARY_DARK,
       fontSize: '40px',
       radius: 18,
-      depth: 500
+      depth: 500,
     });
     back.on('pointerup', () => {
       this.scene.start(this.fromEditor ? 'EditorScene' : 'LevelSelectScene');
     });
 
-    const title = this.levelData?.name || 'Level';
+    const title = this.levelData?.name ?? 'Level';
     addHudPill(this, CONFIG.GAME_WIDTH / 2, 48, 230, 58, title.toUpperCase(), {
       fill: UI.PRIMARY,
       dark: UI.PRIMARY_DARK,
       fontSize: title.length > 12 ? '18px' : '22px',
-      depth: 500
+      depth: 500,
     });
 
     const countPill = addHudPill(this, CONFIG.GAME_WIDTH - 96, 48, 168, 58, '0/24', {
       fill: UI.ACCENT,
       dark: UI.ACCENT_DARK,
       fontSize: '24px',
-      depth: 500
+      depth: 500,
     });
     this.conveyorLabel = countPill.labelText;
     this.time.addEvent({
@@ -200,23 +219,18 @@ export default class GameScene extends Phaser.Scene {
       loop: true,
       callback: () => {
         if (!this.conveyor) return;
-        this.conveyorLabel.setText(`${this.conveyor.count()}/${CONFIG.CONVEYOR.TOTAL_CAPACITY}`);
-      }
+        this.conveyorLabel?.setText(`${this.conveyor.count()}/${CONFIG.CONVEYOR.TOTAL_CAPACITY}`);
+      },
     });
   }
 
-  _createBoxColumns(columnData) {
+  private _createBoxColumns(columnData: readonly BoxColumnConfig[]): BoxColumn[] {
     return [...columnData]
       .sort((a, b) => a.col - b.col)
-      .map((column) => new BoxColumn(
-        this,
-        column.col,
-        column.boxes,
-        this._getColumnX(column.col)
-      ));
+      .map((column) => new BoxColumn(this, column.col, column.boxes, this._getColumnX(column.col)));
   }
 
-  _getColumnX(col) {
+  private _getColumnX(col: number): number {
     const port = CONFIG.OUTPUT_PORTS;
     const conveyor = CONFIG.CONVEYOR;
     const totalSpan = 3 * port.GAP_BETWEEN;
@@ -224,8 +238,9 @@ export default class GameScene extends Phaser.Scene {
     return startX + col * port.GAP_BETWEEN;
   }
 
-  _onBlockTapped(block) {
+  private _onBlockTapped(block: Block): void {
     if (this.isEnding || !block.refreshInteractivity()) return;
+    if (!block.container || !this.funnel || !this.boardManager) return;
 
     const startX = block.container.x;
     const startY = block.container.y;
@@ -241,11 +256,12 @@ export default class GameScene extends Phaser.Scene {
           this,
           startX + Phaser.Math.Between(-30, 30),
           startY + Phaser.Math.Between(-8, 8),
-          color
+          color,
         );
         this.marbles.push(marble);
-        const funnelSlot = this.funnel.reserveSlot(marble);
-        const mouth = this.funnel.getMouthPosition(funnelSlot);
+        const funnelSlot = this.funnel?.reserveSlot(marble);
+        const mouth = this.funnel?.getMouthPosition(funnelSlot);
+        if (!funnelSlot || !mouth) return;
         marble.state = 'moving-to-funnel-mouth';
         marble.flyTo(
           mouth.x,
@@ -254,18 +270,18 @@ export default class GameScene extends Phaser.Scene {
           'Linear',
           () => {
             if (this.isEnding || marble.state === 'destroyed') return;
-            this.funnel.dropMarble(marble, funnelSlot);
-          }
+            this.funnel?.dropMarble(marble, funnelSlot);
+          },
         );
       });
     }
   }
 
-  _onColumnCleared() {
+  private _onColumnCleared(): void {
     this._checkVictory();
   }
 
-  _checkVictory() {
+  private _checkVictory(): void {
     if (this.isEnding) return;
     if (!this.boxColumns.every((column) => column.isEmpty())) return;
 
@@ -276,12 +292,12 @@ export default class GameScene extends Phaser.Scene {
       this.scene.start('GameOverScene', {
         result: 'win',
         levelId: this.levelId,
-        fromEditor: this.fromEditor
+        fromEditor: this.fromEditor,
       });
     });
   }
 
-  _onConveyorOverflow() {
+  private _onConveyorOverflow(): void {
     if (this.isEnding) return;
     this._inputLocked = true;
     this.blocks.forEach((block) => block.refreshInteractivity());
@@ -290,12 +306,12 @@ export default class GameScene extends Phaser.Scene {
       this.scene.start('GameOverScene', {
         result: 'lose',
         levelId: this.levelId,
-        fromEditor: this.fromEditor
+        fromEditor: this.fromEditor,
       });
     });
   }
 
-  _toggleDebugOverlay() {
+  private _toggleDebugOverlay(): void {
     this._debugEnabled = !this._debugEnabled;
 
     if (!this._debugText) {
@@ -304,7 +320,7 @@ export default class GameScene extends Phaser.Scene {
         color: '#a0ffa0',
         fontStyle: 'bold',
         backgroundColor: '#000000',
-        padding: { x: 10, y: 8 }
+        padding: { x: 10, y: 8 },
       }).setDepth(2000);
     }
 
@@ -315,20 +331,20 @@ export default class GameScene extends Phaser.Scene {
       this._debugTimer = this.time.addEvent({
         delay: 120,
         loop: true,
-        callback: () => this._updateDebugOverlay()
+        callback: () => this._updateDebugOverlay(),
       });
     }
   }
 
-  _updateDebugOverlay() {
+  private _updateDebugOverlay(): void {
     if (!this._debugText || !this._debugEnabled) return;
-    const inFlightStates = new Set([
+    const inFlightStates = new Set<string>([
       'moving-to-funnel-mouth',
       'falling-into-funnel',
       'in-funnel-physics',
       'dropping-to-box',
       'flying-to-magnet-target',
-      'leaving-funnel'
+      'leaving-funnel',
     ]);
     const inFlight = this.marbles.filter((marble) => inFlightStates.has(marble.state)).length;
     const lines = [
@@ -337,20 +353,20 @@ export default class GameScene extends Phaser.Scene {
       `Paused ${Boolean(this.conveyor?.isPaused)}`,
       `Funnel ${this.funnel?.count() ?? 0}/${CONFIG.FUNNEL_BUFFER.CAPACITY}`,
       `Input locked ${this._inputLocked}`,
-      `In flight ${inFlight}`
+      `In flight ${inFlight}`,
     ];
 
-    this.boxColumns?.forEach((column) => {
+    this.boxColumns.forEach((column) => {
       const colors = column.getColorSequence();
       lines.push(
-        `Col${column.columnIndex}: ${colors.length ? `[${colors.join(', ')}] top=${colors[0]}` : 'CLEARED'}`
+        `Col${column.columnIndex}: ${colors.length ? `[${colors.join(', ')}] top=${colors[0]}` : 'CLEARED'}`,
       );
     });
 
     this._debugText.setText(lines.join('\n'));
   }
 
-  _showToast(message, duration = 2000) {
+  private _showToast(message: string, duration = 2000): void {
     const container = this.add.container(CONFIG.GAME_WIDTH / 2, 114);
     container.setDepth(1000);
 
@@ -361,7 +377,7 @@ export default class GameScene extends Phaser.Scene {
       strokeWidth: 4,
       shadowOffset: 7,
       shadowAlpha: 0.18,
-      highlightAlpha: 0.24
+      highlightAlpha: 0.24,
     });
     container.add(bg);
 
@@ -370,7 +386,7 @@ export default class GameScene extends Phaser.Scene {
       color: '#ffffff',
       fontStyle: 'bold',
       align: 'center',
-      wordWrap: { width: 540 }
+      wordWrap: { width: 540 },
     }).setOrigin(0.5);
     container.add(text);
 
@@ -380,32 +396,32 @@ export default class GameScene extends Phaser.Scene {
         alpha: 0,
         y: container.y - 12,
         duration: 260,
-        onComplete: () => container.destroy()
+        onComplete: () => container.destroy(),
       });
     });
   }
 
-  _drawLoadError(error) {
+  private _drawLoadError(error: Error): void {
     drawSkyBackground(this);
     const panel = this.add.graphics();
     drawBubblePanel(panel, 70, 470, 580, 240, 36, {
       fill: 0xf3fbff,
       stroke: UI.BLUE_STROKE,
       strokeWidth: 6,
-      shadowOffset: 10
+      shadowOffset: 10,
     });
     addOutlinedText(this, CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 - 46, 'LEVEL LOAD ERROR', {
       fontSize: '34px',
       color: '#ff8ca9',
       stroke: '#97345f',
-      strokeThickness: 6
+      strokeThickness: 6,
     });
     this.add.text(CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 + 20, error.message, {
       fontSize: '18px',
       color: UI.DARK_TEXT,
       fontStyle: 'bold',
       align: 'center',
-      wordWrap: { width: 560 }
+      wordWrap: { width: 560 },
     }).setOrigin(0.5);
   }
 }

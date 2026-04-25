@@ -24,10 +24,11 @@ function listFiles(dir, extension) {
   });
 }
 
-function checkJavaScriptSyntax() {
-  const files = listFiles(SRC, '.js');
-  files.forEach((file) => execFileSync('node', ['--check', file], { stdio: 'pipe' }));
-  pass(`JavaScript syntax (${files.length} files)`);
+function checkTypeScriptCompilation() {
+  const files = listFiles(SRC, '.ts');
+  if (files.length === 0) fail('src must contain TypeScript files');
+  execFileSync('npx', ['tsc', '--noEmit'], { stdio: 'pipe' });
+  pass(`TypeScript compilation (${files.length} files)`);
 }
 
 function checkLevelFiles() {
@@ -110,7 +111,7 @@ function checkLevelFiles() {
 }
 
 async function checkEditorState() {
-  const { default: EditorState } = await import(pathToFileURL(join(SRC, 'systems', 'EditorState.js')).href);
+  const { EditorState } = await import(pathToFileURL(join(SRC, 'sim', 'editorState.ts')).href);
   const state = new EditorState();
 
   state.placeBlock(0, 0);
@@ -147,6 +148,6 @@ async function checkEditorState() {
   pass('EditorState placement, stacking, erase, JSON round-trip');
 }
 
-checkJavaScriptSyntax();
+checkTypeScriptCompilation();
 checkLevelFiles();
 await checkEditorState();

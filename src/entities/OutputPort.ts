@@ -1,7 +1,23 @@
 import { CONFIG, UI } from '../config/constants.js';
+import type { ConveyorTrack } from '../sim/conveyorTrack.js';
 
-export default class OutputPort {
-  constructor(scene, conveyorTrack, columnIndex, boxColumn) {
+import type { BoxColumn } from './BoxColumn.js';
+
+export class OutputPort {
+  readonly scene: Phaser.Scene;
+  readonly columnIndex: number;
+  readonly boxColumn: BoxColumn;
+  readonly x: number;
+  readonly y: number;
+  readonly t: number;
+  readonly gateGraphics: Phaser.GameObjects.Graphics;
+
+  constructor(
+    scene: Phaser.Scene,
+    conveyorTrack: ConveyorTrack,
+    columnIndex: number,
+    boxColumn: BoxColumn,
+  ) {
     this.scene = scene;
     this.columnIndex = columnIndex;
     this.boxColumn = boxColumn;
@@ -19,7 +35,7 @@ export default class OutputPort {
     this.notifyColumnChanged();
   }
 
-  notifyColumnChanged() {
+  notifyColumnChanged(): void {
     this.gateGraphics.clear();
     const topColor = this.boxColumn.getTopBoxColor();
     if (topColor) {
@@ -38,7 +54,7 @@ export default class OutputPort {
       this.x + width / 2,
       this.y + 8,
       this.x,
-      this.y + 38
+      this.y + 38,
     );
     if (topColor) {
       this.gateGraphics.fillStyle(topColor.hex, 0.94);
@@ -51,7 +67,7 @@ export default class OutputPort {
       this.x + width / 2,
       this.y,
       this.x,
-      this.y + 30
+      this.y + 30,
     );
     this.gateGraphics.strokeTriangle(
       this.x - width / 2,
@@ -59,7 +75,7 @@ export default class OutputPort {
       this.x + width / 2,
       this.y,
       this.x,
-      this.y + 30
+      this.y + 30,
     );
   }
 }

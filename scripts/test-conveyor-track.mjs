@@ -1,4 +1,4 @@
-import ConveyorTrack from '../src/systems/ConveyorTrack.js';
+import { ConveyorTrack } from '../src/sim/conveyorTrack.js';
 import { CONFIG } from '../src/config/constants.js';
 
 const track = new ConveyorTrack();
@@ -15,7 +15,7 @@ function assertNear(label, point, expected, tolerance = 0.001) {
 assertNear('t=0.00 upper left', track.positionAt(0), { x: track.leftX, y: track.topY });
 assertNear('entryT under funnel', track.positionAt(track.entryT), {
   x: CONFIG.FUNNEL_AREA.x + CONFIG.FUNNEL_AREA.width / 2,
-  y: track.topY
+  y: track.topY,
 });
 assertNear('t=0.40 upper right', track.positionAt(0.4 - Number.EPSILON), { x: track.rightX, y: track.topY });
 assertNear('t=0.45 right arc outer', track.positionAt(0.45), { x: track.rightX + track.r, y: track.cy });
