@@ -116,7 +116,7 @@ export class EditorState {
       board_size: { cols: this.gridCols, rows: this.gridRows },
       blocks: sortedBlocks,
       box_columns: this._deriveBoxColumns(sortedBlocks),
-      conveyor_speed: 0.06,
+      conveyor_speed: 0.18,
       gravity_flip_enabled: this.gravityFlipEnabled,
       magnet_count: this.magnetCount,
     };

@@ -9,6 +9,13 @@ interface SlotMarker {
   y: number;
 }
 
+export interface ReservedBoxSlot {
+  box: Box;
+  slotIndex: number;
+  x: number;
+  y: number;
+}
+
 export class Box {
   readonly scene: Phaser.Scene;
   readonly color: ColorId;
@@ -18,6 +25,7 @@ export class Box {
   reservedSlots: number[] = [];
   readonly container: Phaser.GameObjects.Container;
   slotMarkers: SlotMarker[] = [];
+  onVisualFull: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene, color: ColorId, capacity = CONFIG.BOX_COLUMNS.BOX_CAPACITY) {
     this.scene = scene;
@@ -55,16 +63,22 @@ export class Box {
     return this.color === color && this.current_count < this.capacity;
   }
 
-  reserveSlot(): { x: number; y: number } | null {
+  reserveSlot(): ReservedBoxSlot | null {
     if (this.current_count >= this.capacity) return null;
     const slotIdx = this.current_count;
     const marker = this.slotMarkers[slotIdx]!;
     this.current_count += 1;
     this.reservedSlots.push(slotIdx);
     return {
+      box: this,
+      slotIndex: slotIdx,
       x: this.container.x + marker.x,
       y: this.container.y + marker.y,
     };
+  }
+
+  isReservedFull(): boolean {
+    return this.current_count >= this.capacity;
   }
 
   fillVisualSlot(marble: Marble | null | undefined): void {
@@ -91,7 +105,9 @@ export class Box {
     });
 
     if (this.visual_filled >= this.capacity) {
-      this.scene.events.emit('box-full', this);
+      const onVisualFull = this.onVisualFull;
+      this.onVisualFull = null;
+      this.destroyWithAnimation(onVisualFull);
     }
   }
 

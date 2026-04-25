@@ -2,7 +2,7 @@ import { getColorDefinition, type ColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
 import type { ColorId } from '../sim/types.js';
 
-import { Box } from './Box.js';
+import { Box, type ReservedBoxSlot } from './Box.js';
 import type { Marble } from './Marble.js';
 import type { OutputPort } from './OutputPort.js';
 
@@ -38,9 +38,12 @@ export class BoxColumn {
     return this.boxes.length > 0 && this.boxes[0]!.canAccept(color);
   }
 
-  reserveSlotForColor(color: ColorId): { x: number; y: number } | null {
+  reserveSlotForColor(color: ColorId): ReservedBoxSlot | null {
     if (!this.canAcceptColor(color)) return null;
-    return this.boxes[0]!.reserveSlot();
+    const box = this.boxes[0]!;
+    const slot = box.reserveSlot();
+    if (box.isReservedFull()) this._advanceTopBox(box);
+    return slot;
   }
 
   fillVisualSlot(marble: Marble): void {
@@ -49,15 +52,22 @@ export class BoxColumn {
   }
 
   onBoxFull(box: Box): void {
+    this._advanceTopBox(box);
+  }
+
+  private _advanceTopBox(box: Box): void {
     if (this.boxes[0] !== box) return;
 
-    const removed = this.boxes.shift()!;
+    this.boxes.shift();
     if (this.outputPort) this.outputPort.notifyColumnChanged();
 
-    removed.destroyWithAnimation(() => {
+    box.onVisualFull = () => {
+      this._tweenBoxesToCurrentPositions();
       this._emitClearedIfNeeded();
-    });
+    };
+  }
 
+  private _tweenBoxesToCurrentPositions(): void {
     const area = CONFIG.BOX_COLUMNS.AREA;
     const height = CONFIG.BOX_COLUMNS.BOX_HEIGHT;
     const gap = CONFIG.BOX_COLUMNS.BOX_GAP;
@@ -65,8 +75,6 @@ export class BoxColumn {
     this.boxes.forEach((current, index) => {
       current.tweenPosition(this.x, topY + index * (height + gap), 350);
     });
-
-    this._emitClearedIfNeeded();
   }
 
   getTopBoxColor(): ColorDefinition | null {

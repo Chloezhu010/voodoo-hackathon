@@ -4,6 +4,10 @@ import type { ColorId } from '../sim/types.js';
 
 export type MarbleState =
   | 'created'
+  | 'moving-to-funnel-mouth'
+  | 'falling-into-funnel'
+  | 'in-funnel-physics'
+  | 'leaving-funnel'
   | 'on-conveyor'
   | 'dropping-to-box'
   | 'flying-to-magnet-target'
@@ -15,6 +19,8 @@ export class Marble {
   readonly color: ColorId;
   state: MarbleState = 'created';
   t = -1;
+  slotIndex = -1;
+  funnelSlotIndex = -1;
   sprite: Phaser.GameObjects.Graphics | null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, color: ColorId) {
@@ -63,6 +69,8 @@ export class Marble {
   destroy(): void {
     this.state = 'destroyed';
     this.t = -1;
+    this.slotIndex = -1;
+    this.funnelSlotIndex = -1;
     if (this.sprite) {
       this.scene.tweens.killTweensOf(this.sprite);
       this.sprite.destroy();
