@@ -10,7 +10,9 @@ export default class Conveyor {
     this.outputPorts = [];
     this.isPaused = false;
     this._overflowFired = false;
-    this._entryOffset = 0;
+    this._slotOffset = 0;
+    this._reservedSlots = new Set();
+    this.slotCount = CONFIG.CONVEYOR.TOTAL_CAPACITY;
 
     this._renderTrack();
   }
@@ -23,14 +25,9 @@ export default class Conveyor {
     this._strokeTrack(graphics, 2, 0xffffff, 0.16);
     this.trackGraphics = graphics;
 
-    const tickGraphics = this.scene.add.graphics();
-    tickGraphics.setDepth(36);
-    for (let i = 0; i < CONFIG.CONVEYOR.TOTAL_CAPACITY; i += 1) {
-      const pos = this.track.positionAt(i / CONFIG.CONVEYOR.TOTAL_CAPACITY);
-      tickGraphics.fillStyle(0xffffff, 0.08);
-      tickGraphics.fillCircle(pos.x, pos.y, 3);
-    }
-    this.tickGraphics = tickGraphics;
+    this.slotGraphics = this.scene.add.graphics();
+    this.slotGraphics.setDepth(36);
+    this._drawSlots();
   }
 
   _strokeTrack(graphics, width, color, alpha) {
@@ -50,25 +47,58 @@ export default class Conveyor {
     this.outputPorts.push(port);
   }
 
-  acceptMarble(marble) {
-    if (this.marbles.length >= CONFIG.CONVEYOR.TOTAL_CAPACITY) {
+  reserveEntrySlot({ maxDistance = null } = {}) {
+    const slotIndex = this._findEntrySlot(maxDistance);
+    if (slotIndex === null) return null;
+    this._reservedSlots.add(slotIndex);
+    return {
+      slotIndex,
+      ...this._slotPosition(slotIndex)
+    };
+  }
+
+  releaseReservedSlot(slotIndex) {
+    if (Number.isInteger(slotIndex)) this._reservedSlots.delete(slotIndex);
+  }
+
+  getEntryPosition() {
+    const slotIndex = this._findEntrySlot();
+    if (slotIndex === null) return this.track.positionAt(this.track.entryT);
+    return this._slotPosition(slotIndex);
+  }
+
+  acceptMarble(marble, reservedSlotIndex = null) {
+    const hasReservedSlot = Number.isInteger(reservedSlotIndex);
+    if (hasReservedSlot) this._reservedSlots.delete(reservedSlotIndex);
+
+    if (!hasReservedSlot && this.count() >= this.slotCount) {
       this._handleOverflow(marble);
       return false;
     }
 
-    marble.state = 'on-conveyor';
-    marble.t = (this.track.entryT - this._entryOffset * 0.006 + 1) % 1;
-    this._entryOffset = (this._entryOffset + 1) % CONFIG.CONVEYOR.TOTAL_CAPACITY;
-    this.marbles.push(marble);
+    let slotIndex = hasReservedSlot ? reservedSlotIndex : this._findEntrySlot();
+    if (!Number.isInteger(slotIndex) || !this._isSlotFree(slotIndex, marble)) {
+      slotIndex = this._findEntrySlot();
+    }
 
-    const pos = this.track.positionAt(marble.t);
-    marble.setPositionDirect(pos.x, pos.y);
+    if (!Number.isInteger(slotIndex)) {
+      this._handleOverflow(marble);
+      return false;
+    }
+
+    if (!this.marbles.includes(marble)) this.marbles.push(marble);
+    this._assignSlot(marble, slotIndex);
+    this._drawSlots();
     return true;
   }
 
+  rejectMarble(marble) {
+    this._handleOverflow(marble);
+  }
+
   _handleOverflow(marble) {
-    marble.state = 'overflow-exit';
-    if (marble.sprite) {
+    if (marble) marble.state = 'overflow-exit';
+    if (marble?.sprite) {
       this.scene.tweens.add({
         targets: marble.sprite,
         x: marble.sprite.x + Phaser.Math.Between(-8, 8),
@@ -79,7 +109,7 @@ export default class Conveyor {
           marble.flyTo(marble.sprite.x, marble.sprite.y - 200, 400, 'Cubic.easeIn', () => marble.destroy());
         }
       });
-    } else {
+    } else if (marble) {
       marble.destroy();
     }
 
@@ -90,13 +120,25 @@ export default class Conveyor {
   }
 
   update(dt) {
-    if (this.isPaused) return;
+    if (this.isPaused) {
+      this._drawSlots();
+      return;
+    }
+
+    for (const marble of this.marbles) {
+      if (marble.state === 'on-conveyor') this._ensureSlotForMarble(marble);
+    }
+
     const advance = this.speed * (dt / 1000);
+    this._slotOffset = (this._slotOffset + advance) % 1;
+    this._drawSlots();
 
     for (const marble of this.marbles.slice()) {
       if (marble.state !== 'on-conveyor') continue;
-      marble.t = (marble.t + advance) % 1;
-      const pos = this.track.positionAt(marble.t);
+      if (!this._ensureSlotForMarble(marble)) continue;
+
+      marble.t = this._slotT(marble.slotIndex);
+      const pos = this._slotPosition(marble.slotIndex);
       marble.setPositionDirect(pos.x, pos.y);
 
       for (const port of this.outputPorts) {
@@ -107,6 +149,8 @@ export default class Conveyor {
         }
       }
     }
+
+    this._checkDeadlock();
   }
 
   _tDistance(a, b) {
@@ -117,6 +161,8 @@ export default class Conveyor {
   _dropMarble(marble, port) {
     const index = this.marbles.indexOf(marble);
     if (index !== -1) this.marbles.splice(index, 1);
+    this._releaseMarbleSlot(marble);
+    this._drawSlots();
 
     marble.state = 'dropping-to-box';
     const target = port.boxColumn.reserveSlotForColor(marble.color);
@@ -126,9 +172,23 @@ export default class Conveyor {
     }
 
     marble.flyTo(target.x, target.y, CONFIG.MARBLE_PORT_DROP_DURATION, 'Quad.easeIn', () => {
-      port.boxColumn.fillVisualSlot(marble);
+      target.box.fillVisualSlot(marble);
       marble.destroy();
     });
+  }
+
+  _checkDeadlock() {
+    if (this._overflowFired) return;
+    const activeMarbles = this.marbles.filter((marble) => marble.state === 'on-conveyor');
+    if (activeMarbles.length < this.slotCount) return;
+
+    const activeColors = new Set(activeMarbles.map((marble) => marble.color));
+    const canEventuallyDrain = this.outputPorts.some((port) => (
+      [...activeColors].some((color) => port.boxColumn.canAcceptColor(color))
+    ));
+    if (canEventuallyDrain) return;
+
+    this._handleOverflow(null);
   }
 
   magnetize(color) {
@@ -139,6 +199,7 @@ export default class Conveyor {
     matched.forEach((marble, index) => {
       const marbleIndex = this.marbles.indexOf(marble);
       if (marbleIndex !== -1) this.marbles.splice(marbleIndex, 1);
+      this._releaseMarbleSlot(marble);
 
       this.scene.time.delayedCall(index * 80, () => {
         const port = this.outputPorts.find((candidate) => candidate.boxColumn.canAcceptColor(color));
@@ -147,7 +208,7 @@ export default class Conveyor {
           const target = port.boxColumn.reserveSlotForColor(color);
           if (target) {
             marble.flyTo(target.x, target.y, 400, 'Cubic.easeOut', () => {
-              port.boxColumn.fillVisualSlot(marble);
+              target.box.fillVisualSlot(marble);
               marble.destroy();
             });
             return;
@@ -159,16 +220,100 @@ export default class Conveyor {
       });
     });
 
+    this._drawSlots();
     return matched.length;
   }
 
   setPaused(paused) {
     this.isPaused = paused;
     this.trackGraphics?.setAlpha(paused ? 0.45 : 1);
-    this.tickGraphics?.setAlpha(paused ? 0.35 : 1);
+    this.slotGraphics?.setAlpha(paused ? 0.35 : 1);
   }
 
   count() {
-    return this.marbles.length;
+    return this.marbles.length + this._reservedSlots.size;
+  }
+
+  _drawSlots() {
+    if (!this.slotGraphics) return;
+    const occupied = this._usedSlots();
+    const radius = CONFIG.MARBLE_RADIUS + 5;
+    this.slotGraphics.clear();
+
+    for (let i = 0; i < this.slotCount; i += 1) {
+      const pos = this._slotPosition(i);
+      const isUsed = occupied.has(i);
+      this.slotGraphics.fillStyle(isUsed ? 0xffffff : 0x000000, isUsed ? 0.13 : 0.1);
+      this.slotGraphics.fillCircle(pos.x, pos.y, radius);
+      this.slotGraphics.lineStyle(2, 0xffffff, isUsed ? 0.42 : 0.2);
+      this.slotGraphics.strokeCircle(pos.x, pos.y, radius);
+    }
+  }
+
+  _slotT(slotIndex) {
+    return ((slotIndex / this.slotCount + this._slotOffset) % 1 + 1) % 1;
+  }
+
+  _slotPosition(slotIndex) {
+    return this.track.positionAt(this._slotT(slotIndex));
+  }
+
+  _findEntrySlot(maxDistance = null) {
+    const slotIndex = this._nearestFreeSlotIndexForT(this.track.entryT);
+    if (slotIndex === null) return null;
+    if (
+      Number.isFinite(maxDistance)
+      && this._tDistance(this._slotT(slotIndex), this.track.entryT) > maxDistance
+    ) {
+      return null;
+    }
+    return slotIndex;
+  }
+
+  _nearestFreeSlotIndexForT(t, marble) {
+    const slots = Array.from({ length: this.slotCount }, (_value, index) => index);
+    slots.sort((a, b) => (
+      this._tDistance(this._slotT(a), t) - this._tDistance(this._slotT(b), t)
+    ));
+    return slots.find((slotIndex) => this._isSlotFree(slotIndex, marble)) ?? null;
+  }
+
+  _ensureSlotForMarble(marble) {
+    if (Number.isInteger(marble.slotIndex) && marble.slotIndex >= 0) return true;
+    const slotIndex = this._nearestFreeSlotIndexForT(marble.t >= 0 ? marble.t : this.track.entryT, marble);
+    if (!Number.isInteger(slotIndex)) return false;
+    marble.slotIndex = slotIndex;
+    return true;
+  }
+
+  _assignSlot(marble, slotIndex) {
+    marble.state = 'on-conveyor';
+    marble.slotIndex = slotIndex;
+    marble.t = this._slotT(slotIndex);
+    const pos = this._slotPosition(slotIndex);
+    marble.setPositionDirect(pos.x, pos.y);
+  }
+
+  _releaseMarbleSlot(marble) {
+    marble.slotIndex = -1;
+  }
+
+  _isSlotFree(slotIndex, ignoreMarble = null) {
+    if (this._reservedSlots.has(slotIndex)) return false;
+    return !this.marbles.some((marble) => (
+      marble !== ignoreMarble
+      && marble.state === 'on-conveyor'
+      && marble.slotIndex === slotIndex
+    ));
+  }
+
+  _usedSlots() {
+    const used = new Set(this._reservedSlots);
+    for (const marble of this.marbles) {
+      if (marble.state === 'on-conveyor' && Number.isInteger(marble.slotIndex) && marble.slotIndex >= 0) {
+        used.add(marble.slotIndex);
+      }
+    }
+    return used;
   }
 }

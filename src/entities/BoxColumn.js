@@ -33,7 +33,10 @@ export default class BoxColumn {
 
   reserveSlotForColor(color) {
     if (!this.canAcceptColor(color)) return null;
-    return this.boxes[0].reserveSlot();
+    const box = this.boxes[0];
+    const slot = box.reserveSlot();
+    if (box.isReservedFull()) this._advanceTopBox(box);
+    return slot;
   }
 
   fillVisualSlot(marble) {
@@ -42,15 +45,22 @@ export default class BoxColumn {
   }
 
   onBoxFull(box) {
+    this._advanceTopBox(box);
+  }
+
+  _advanceTopBox(box) {
     if (this.boxes[0] !== box) return;
 
-    const removed = this.boxes.shift();
+    this.boxes.shift();
     if (this.outputPort) this.outputPort.notifyColumnChanged();
 
-    removed.destroyWithAnimation(() => {
+    box.onVisualFull = () => {
+      this._tweenBoxesToCurrentPositions();
       this._emitClearedIfNeeded();
-    });
+    };
+  }
 
+  _tweenBoxesToCurrentPositions() {
     const area = CONFIG.BOX_COLUMNS.AREA;
     const height = CONFIG.BOX_COLUMNS.BOX_HEIGHT;
     const gap = CONFIG.BOX_COLUMNS.BOX_GAP;
@@ -58,8 +68,6 @@ export default class BoxColumn {
     this.boxes.forEach((current, index) => {
       current.tweenPosition(this.x, topY + index * (height + gap), 350);
     });
-
-    this._emitClearedIfNeeded();
   }
 
   getTopBoxColor() {
