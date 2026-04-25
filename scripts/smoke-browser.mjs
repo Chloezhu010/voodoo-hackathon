@@ -243,6 +243,51 @@ async function setCustomLevel(client, level) {
   });
 }
 
+async function expectInvalidCustomLevelLoadError(client, level, expectedMessagePart) {
+  const beforeGeneration = await getGameSceneGeneration(client);
+  await evaluate(client, `window._customLevelData = ${JSON.stringify(level)}; true`);
+  await startScene(client, 'GameScene', { levelId: level.level_id, fromEditor: true });
+  await waitFor(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    const texts = s.children.list
+      .filter((child) => child.type === 'Text')
+      .map((child) => child.text);
+    return s.scene.isActive()
+      && (s._createGeneration || 0) === ${beforeGeneration}
+      && texts.includes('LEVEL LOAD ERROR')
+      && texts.some((text) => text.includes(${JSON.stringify(expectedMessagePart)}));
+  })()`, 5000);
+
+  const state = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    const texts = s.children.list
+      .filter((child) => child.type === 'Text')
+      .map((child) => child.text);
+    return {
+      generation: s._createGeneration || 0,
+      levelId: s.levelData?.level_id,
+      active: s.scene.isActive(),
+      loadError: texts.includes('LEVEL LOAD ERROR'),
+      expectedMessage: texts.some((text) => text.includes(${JSON.stringify(expectedMessagePart)})),
+      normalTargetScene: (s.levelData?.level_id === ${level.level_id}) && s.blocks?.length > 0 && s.boxColumns?.length === 4 && Boolean(s.conveyor)
+    };
+  })()`);
+  if (state.generation !== beforeGeneration || !state.loadError || !state.expectedMessage || state.normalTargetScene) {
+    throw new Error(`Invalid level entered normal GameScene: ${JSON.stringify(state)}`);
+  }
+}
+
+async function waitForColumnSettled(client, columnIndex, timeout = 18000) {
+  await waitFor(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    const column = s.boxColumns?.[${columnIndex}];
+    const activeMarbles = s.marbles?.filter((marble) => marble.state !== 'destroyed').length || 0;
+    return column?.isEmpty()
+      && s.conveyor?.count() === 0
+      && activeMarbles === 0;
+  })()`, timeout);
+}
+
 function makeColumns(columns) {
   return [0, 1, 2, 3].map((col) => ({ col, boxes: columns[col] || [] }));
 }
@@ -267,6 +312,46 @@ async function runConveyorBoxEdgeCases(client) {
   })()`);
   if (singleResult.result !== 'win') throw new Error(`Scenario 1 expected win: ${JSON.stringify(singleResult)}`);
   console.log('ok - 02c scenario 1 single color boxes clear to victory');
+
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Four Column Victory',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [
+      { id: 'pink', col: 0, row: 1, z: 0, color: 'pink', is_hidden: false },
+      { id: 'blue', col: 1, row: 1, z: 0, color: 'blue', is_hidden: false },
+      { id: 'green', col: 2, row: 1, z: 0, color: 'green', is_hidden: false },
+      { id: 'yellow', col: 3, row: 1, z: 0, color: 'yellow', is_hidden: false }
+    ],
+    box_columns: makeColumns({
+      0: ['pink', 'pink', 'pink'],
+      1: ['blue', 'blue', 'blue'],
+      2: ['green', 'green', 'green'],
+      3: ['yellow', 'yellow', 'yellow']
+    }),
+    conveyor_speed: 0.5,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
+  for (const [columnIndex, blockId] of ['pink', 'blue', 'green', 'yellow'].entries()) {
+    await evaluate(client, `(() => {
+      const s = window.marbleSortGame.scene.getScene('GameScene');
+      const block = s.blocks.find((candidate) => candidate.data.id === ${JSON.stringify(blockId)});
+      s._onBlockTapped(block);
+      return true;
+    })()`);
+    await waitForColumnSettled(client, columnIndex);
+  }
+  await waitFor(client, `window.marbleSortGame.scene.getScene('GameOverScene').scene.isActive()`, 4000);
+  const fourColumnResult = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameOverScene');
+    return { result: s.result, levelId: s.levelId };
+  })()`);
+  if (fourColumnResult.result !== 'win') {
+    throw new Error(`Scenario 2 expected win: ${JSON.stringify(fourColumnResult)}`);
+  }
+  console.log('ok - 02c scenario 2 four color columns clear to victory');
 
   await setCustomLevel(client, {
     level_id: 99,
@@ -302,6 +387,19 @@ async function runConveyorBoxEdgeCases(client) {
     throw new Error(`Scenario 3 top-color gate failed: ${JSON.stringify(blocked)}`);
   }
   console.log('ok - 02c scenario 3 wrong color loops until top box changes');
+
+  await expectInvalidCustomLevelLoadError(client, {
+    level_id: 98,
+    name: 'Invalid Capacity',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [{ id: 'pink', col: 2, row: 2, z: 0, color: 'pink', is_hidden: false }],
+    box_columns: makeColumns({ 0: ['pink', 'pink', 'pink', 'pink'] }),
+    conveyor_speed: 0.5,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  }, 'Marble count');
+  console.log('ok - 02c scenario 4 invalid level shows load error');
 
   await setCustomLevel(client, {
     level_id: 99,
