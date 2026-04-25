@@ -1,3 +1,4 @@
+import { ART_KEYS, hasArtTexture } from '../assets/artAssets.js';
 import { CONFIG, UI } from '../config/constants.js';
 
 import { attachHitZone } from './hitZones.js';
@@ -66,9 +67,22 @@ export function drawSkyBackground(scene: Phaser.Scene): Phaser.GameObjects.Graph
   scene.cameras.main.setBackgroundColor(colorToCss(UI.BACKGROUND));
   const g = scene.add.graphics();
   g.setDepth(-100);
-  g.fillStyle(UI.BACKGROUND, 1);
-  g.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+  if (hasArtTexture(scene, ART_KEYS.sky)) {
+    scene.add.image(0, 0, ART_KEYS.sky)
+      .setOrigin(0)
+      .setDisplaySize(CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT)
+      .setDepth(-101);
+  } else {
+    g.fillStyle(UI.BACKGROUND, 1);
+    g.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+  }
   return g;
+}
+
+function buttonBackgroundKey(width: number, height: number, fill: number): string | null {
+  if (height <= 82 && width <= 92) return ART_KEYS.backButton;
+  if (height <= 66) return ART_KEYS.hudPill;
+  return fill === UI.ACCENT ? ART_KEYS.buttonAccent : ART_KEYS.buttonPrimary;
 }
 
 export function addOutlinedText(
@@ -140,16 +154,23 @@ export function addBubbleButton(
   const base = options.fill ?? UI.PRIMARY;
   const dark = options.dark ?? UI.PRIMARY_DARK;
   const textColor = options.textColor ?? UI.TEXT;
-  const g = scene.add.graphics();
+  let background: Phaser.GameObjects.GameObject;
+  const assetKey = buttonBackgroundKey(width, height, base);
 
-  g.fillStyle(dark, 1);
-  g.fillRoundedRect(-width / 2, -height / 2 + 8, width, height, radius);
-  g.fillStyle(base, 1);
-  g.fillRoundedRect(-width / 2, -height / 2, width, height, radius);
-  g.fillStyle(options.highlight ?? 0xffffff, options.highlightAlpha ?? 0.26);
-  g.fillRoundedRect(-width / 2 + 12, -height / 2 + 8, width - 24, Math.max(12, height * 0.28), radius * 0.65);
-  g.lineStyle(options.strokeWidth ?? 4, options.stroke ?? 0xffffff, options.strokeAlpha ?? 0.52);
-  g.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
+  if (assetKey && hasArtTexture(scene, assetKey)) {
+    background = scene.add.image(0, 0, assetKey).setDisplaySize(width, height);
+  } else {
+    const g = scene.add.graphics();
+    g.fillStyle(dark, 1);
+    g.fillRoundedRect(-width / 2, -height / 2 + 8, width, height, radius);
+    g.fillStyle(base, 1);
+    g.fillRoundedRect(-width / 2, -height / 2, width, height, radius);
+    g.fillStyle(options.highlight ?? 0xffffff, options.highlightAlpha ?? 0.26);
+    g.fillRoundedRect(-width / 2 + 12, -height / 2 + 8, width - 24, Math.max(12, height * 0.28), radius * 0.65);
+    g.lineStyle(options.strokeWidth ?? 4, options.stroke ?? 0xffffff, options.strokeAlpha ?? 0.52);
+    g.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
+    background = g;
+  }
 
   const text = addOutlinedText(scene, 0, -1, label, {
     fontSize: options.fontSize ?? (height >= 90 ? '38px' : '28px'),
@@ -159,7 +180,7 @@ export function addBubbleButton(
     shadowY: 2,
     shadowColor: colorToCss(dark),
   });
-  container.add([g, text]);
+  container.add([background, text]);
   container.labelText = text;
   container.setSize(width, height);
   if (Number.isFinite(options.depth)) container.setDepth(options.depth!);
@@ -192,19 +213,25 @@ export function addHudPill(
   options: HudPillOptions = {},
 ): LabelContainer {
   const container = scene.add.container(x, y) as LabelContainer;
-  const g = scene.add.graphics();
   const radius = height / 2;
   const fill = options.fill ?? UI.PRIMARY;
   const dark = options.dark ?? UI.PRIMARY_DARK;
 
-  g.fillStyle(dark, 1);
-  g.fillRoundedRect(-width / 2, -height / 2 + 5, width, height, radius);
-  g.fillStyle(fill, 1);
-  g.fillRoundedRect(-width / 2, -height / 2, width, height, radius);
-  g.fillStyle(0xffffff, 0.22);
-  g.fillRoundedRect(-width / 2 + 10, -height / 2 + 7, width - 20, height * 0.3, radius * 0.5);
-  g.lineStyle(3, 0xffffff, 0.5);
-  g.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
+  if (hasArtTexture(scene, ART_KEYS.hudPill)) {
+    const image = scene.add.image(0, 0, ART_KEYS.hudPill).setDisplaySize(width, height);
+    container.add(image);
+  } else {
+    const g = scene.add.graphics();
+    g.fillStyle(dark, 1);
+    g.fillRoundedRect(-width / 2, -height / 2 + 5, width, height, radius);
+    g.fillStyle(fill, 1);
+    g.fillRoundedRect(-width / 2, -height / 2, width, height, radius);
+    g.fillStyle(0xffffff, 0.22);
+    g.fillRoundedRect(-width / 2 + 10, -height / 2 + 7, width - 20, height * 0.3, radius * 0.5);
+    g.lineStyle(3, 0xffffff, 0.5);
+    g.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
+    container.add(g);
+  }
 
   const text = addOutlinedText(scene, 0, -1, label, {
     fontSize: options.fontSize ?? '24px',
@@ -213,7 +240,7 @@ export function addHudPill(
     shadowY: 2,
     shadowColor: colorToCss(dark),
   });
-  container.add([g, text]);
+  container.add(text);
   container.labelText = text;
   if (Number.isFinite(options.depth)) container.setDepth(options.depth!);
   return container;

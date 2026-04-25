@@ -1,3 +1,4 @@
+import { ART_KEYS, hasArtTexture } from '../assets/artAssets.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { addBubbleButton, addOutlinedText, drawBubblePanel, drawSkyBackground } from '../ui/casualStyle.js';
 import { attachHitZone } from '../ui/hitZones.js';
@@ -53,23 +54,33 @@ export class LevelSelectScene extends Phaser.Scene {
     const container = this.add.container(x, y);
 
     const background = this.add.graphics();
-    drawBubblePanel(background, -width / 2, -height / 2, width, height, 30, {
-      fill: 0xe9f5fa,
-      stroke: UI.BLUE_STROKE,
-      strokeWidth: 5,
-      shadowOffset: 9,
-      highlightAlpha: 0.36,
-    });
+    const backgroundAsset = hasArtTexture(this, ART_KEYS.levelCard)
+      ? this.add.image(0, 0, ART_KEYS.levelCard).setDisplaySize(width, height)
+      : null;
+    if (!backgroundAsset) {
+      drawBubblePanel(background, -width / 2, -height / 2, width, height, 30, {
+        fill: 0xe9f5fa,
+        stroke: UI.BLUE_STROKE,
+        strokeWidth: 5,
+        shadowOffset: 9,
+        highlightAlpha: 0.36,
+      });
+    }
 
     const badge = this.add.graphics();
-    badge.fillStyle(UI.PRIMARY_DARK, 1);
-    badge.fillRoundedRect(-238, -70, 112, 140, 26);
-    badge.fillStyle(UI.PRIMARY, 1);
-    badge.fillRoundedRect(-238, -78, 112, 140, 26);
-    badge.fillStyle(0xffffff, 0.25);
-    badge.fillRoundedRect(-226, -66, 88, 34, 18);
-    badge.lineStyle(4, 0xffffff, 0.4);
-    badge.strokeRoundedRect(-238, -78, 112, 140, 26);
+    const badgeAsset = hasArtTexture(this, ART_KEYS.levelBadge)
+      ? this.add.image(-182, -8, ART_KEYS.levelBadge).setDisplaySize(112, 140)
+      : null;
+    if (!badgeAsset) {
+      badge.fillStyle(UI.PRIMARY_DARK, 1);
+      badge.fillRoundedRect(-238, -70, 112, 140, 26);
+      badge.fillStyle(UI.PRIMARY, 1);
+      badge.fillRoundedRect(-238, -78, 112, 140, 26);
+      badge.fillStyle(0xffffff, 0.25);
+      badge.fillRoundedRect(-226, -66, 88, 34, 18);
+      badge.lineStyle(4, 0xffffff, 0.4);
+      badge.strokeRoundedRect(-238, -78, 112, 140, 26);
+    }
 
     const number = addOutlinedText(this, -182, -7, level.number, {
       fontSize: '58px',
@@ -99,14 +110,28 @@ export class LevelSelectScene extends Phaser.Scene {
       shadowColor: '#a5520d',
     });
     const arrowBg = this.add.graphics();
-    arrowBg.fillStyle(UI.ACCENT_DARK, 1);
-    arrowBg.fillRoundedRect(190, -36, 72, 72, 20);
-    arrowBg.fillStyle(UI.ACCENT, 1);
-    arrowBg.fillRoundedRect(190, -43, 72, 72, 20);
-    arrowBg.fillStyle(0xffffff, 0.22);
-    arrowBg.fillRoundedRect(198, -35, 56, 20, 10);
+    const arrowBgAsset = hasArtTexture(this, ART_KEYS.arrowButton)
+      ? this.add.image(226, -5, ART_KEYS.arrowButton).setDisplaySize(72, 72)
+      : null;
+    if (!arrowBgAsset) {
+      arrowBg.fillStyle(UI.ACCENT_DARK, 1);
+      arrowBg.fillRoundedRect(190, -36, 72, 72, 20);
+      arrowBg.fillStyle(UI.ACCENT, 1);
+      arrowBg.fillRoundedRect(190, -43, 72, 72, 20);
+      arrowBg.fillStyle(0xffffff, 0.22);
+      arrowBg.fillRoundedRect(198, -35, 56, 20, 10);
+    }
 
-    container.add([background, badge, number, title, stars, hook, arrowBg, arrow]);
+    container.add([
+      backgroundAsset ?? background,
+      badgeAsset ?? badge,
+      number,
+      title,
+      stars,
+      hook,
+      arrowBgAsset ?? arrowBg,
+      arrow,
+    ]);
     container.setSize(width, height);
     attachHitZone(this, container, width, height);
 

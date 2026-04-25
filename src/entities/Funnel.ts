@@ -129,21 +129,36 @@ export class Funnel {
 
   private _collideWalls(particle: FunnelParticle): void {
     const area = CONFIG.FUNNEL_AREA;
-    const leftWall = {
-      ax: area.x,
-      ay: area.y + 10,
-      bx: area.x + area.width * 0.42,
-      by: area.y + area.height - 10,
-    };
-    const rightWall = {
-      ax: area.x + area.width,
-      ay: area.y + 10,
-      bx: area.x + area.width * 0.58,
-      by: area.y + area.height - 10,
-    };
+    const centerX = this._centerX();
+    const neckBottomY = this._floorY() + CONFIG.MARBLE_RADIUS * 0.25;
+    const wallSegments = [
+      {
+        ax: area.x - 10,
+        ay: area.y + 18,
+        bx: centerX - 92,
+        by: area.y + area.height * 0.62,
+      },
+      {
+        ax: centerX - 92,
+        ay: area.y + area.height * 0.62,
+        bx: centerX - 56,
+        by: neckBottomY,
+      },
+      {
+        ax: area.x + area.width + 10,
+        ay: area.y + 18,
+        bx: centerX + 92,
+        by: area.y + area.height * 0.62,
+      },
+      {
+        ax: centerX + 92,
+        ay: area.y + area.height * 0.62,
+        bx: centerX + 56,
+        by: neckBottomY,
+      },
+    ];
 
-    this._collideLine(particle, leftWall);
-    this._collideLine(particle, rightWall);
+    wallSegments.forEach((wall) => this._collideLine(particle, wall));
   }
 
   private _collideLine(
@@ -301,20 +316,21 @@ export class Funnel {
     const centerX = this._centerX();
     return [
       centerX,
-      area.x + area.width * 0.18,
-      area.x + area.width * 0.82,
-      area.x + area.width * 0.1,
-      area.x + area.width * 0.9,
-      centerX - 22,
-      centerX + 22,
-      area.x + area.width * 0.28,
-      area.x + area.width * 0.72,
+      area.x + area.width * 0.14,
+      area.x + area.width * 0.86,
+      area.x + area.width * 0.08,
+      area.x + area.width * 0.92,
+      centerX - 34,
+      centerX + 34,
+      area.x + area.width * 0.26,
+      area.x + area.width * 0.74,
     ];
   }
 
   private _floorY(): number {
-    const area = CONFIG.FUNNEL_AREA;
-    return area.y + area.height - CONFIG.MARBLE_RADIUS - 4;
+    const conveyor = CONFIG.CONVEYOR;
+    const conveyorTopY = conveyor.AREA.y + conveyor.TRACK_TOP_OFFSET;
+    return conveyorTopY - CONFIG.MARBLE_DISPLAY_SIZE / 2 - 8;
   }
 
   private _centerX(): number {

@@ -1,3 +1,4 @@
+import { hasArtTexture, marbleArtKey } from '../assets/artAssets.js';
 import { getColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
 import type { ColorId } from '../sim/types.js';
@@ -21,13 +22,22 @@ export class Marble {
   t = -1;
   slotIndex = -1;
   funnelSlotIndex = -1;
-  sprite: Phaser.GameObjects.Graphics | null;
+  sprite: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image | null;
   private _flightId = 0;
   private _flightGuard: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, color: ColorId) {
     this.scene = scene;
     this.color = color;
+    const assetKey = marbleArtKey(color);
+    if (hasArtTexture(scene, assetKey)) {
+      const image = scene.add.image(x, y, assetKey)
+        .setDisplaySize(CONFIG.MARBLE_DISPLAY_SIZE, CONFIG.MARBLE_DISPLAY_SIZE);
+      image.setDepth(400);
+      this.sprite = image;
+      return;
+    }
+
     const sprite = scene.add.graphics();
     sprite.setDepth(400);
     sprite.fillStyle(0x263f73, 0.22);

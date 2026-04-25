@@ -18,14 +18,13 @@ export class ConveyorTrack {
 
   constructor() {
     const conveyor = CONFIG.CONVEYOR;
+    this.leftX = conveyor.AREA.x + conveyor.TRACK_LEFT_OFFSET;
+    this.rightX = conveyor.AREA.x + conveyor.TRACK_RIGHT_OFFSET;
+    this.topY = conveyor.AREA.y + conveyor.TRACK_TOP_OFFSET;
+    this.bottomY = conveyor.AREA.y + conveyor.TRACK_BOTTOM_OFFSET;
     this.cx = conveyor.AREA.x + conveyor.AREA.width / 2;
-    this.cy = conveyor.AREA.y + conveyor.AREA.height / 2;
-
-    this.leftX = conveyor.AREA.x + conveyor.CORNER_RADIUS;
-    this.rightX = conveyor.AREA.x + conveyor.AREA.width - conveyor.CORNER_RADIUS;
-    this.topY = this.cy + conveyor.UPPER_LAYER_Y_OFFSET;
-    this.bottomY = this.cy + conveyor.LOWER_LAYER_Y_OFFSET;
-    this.r = conveyor.CORNER_RADIUS;
+    this.cy = (this.topY + this.bottomY) / 2;
+    this.r = conveyor.TRACK_SIDE_RADIUS;
     this.verticalRadius = Math.abs(this.bottomY - this.topY) / 2;
   }
 
@@ -70,8 +69,19 @@ export class ConveyorTrack {
   }
 
   tForLowerLayerX(x: number): number {
+    if (x > this.rightX) {
+      const ratio = Math.max(0, Math.min(1, (x - this.rightX) / this.r));
+      const angle = Math.acos(ratio);
+      return 0.4 + ((angle + Math.PI / 2) / Math.PI) * 0.1;
+    }
+
+    if (x < this.leftX) {
+      const ratio = Math.max(-1, Math.min(0, (x - this.leftX) / this.r));
+      const angle = Math.acos(ratio);
+      return 0.9 + ((angle - Math.PI / 2) / Math.PI) * 0.1;
+    }
+
     const ratio = (this.rightX - x) / (this.rightX - this.leftX);
-    const clamped = Math.max(0, Math.min(1, ratio));
-    return 0.5 + clamped * 0.4;
+    return 0.5 + ratio * 0.4;
   }
 }

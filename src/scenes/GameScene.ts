@@ -1,3 +1,4 @@
+import { ART_KEYS, hasArtTexture } from '../assets/artAssets.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { Block } from '../entities/Block.js';
 import { BoxColumn } from '../entities/BoxColumn.js';
@@ -15,6 +16,7 @@ import {
   drawBubblePanel,
   drawSkyBackground,
 } from '../ui/casualStyle.js';
+import { attachHitZone } from '../ui/hitZones.js';
 
 interface GameSceneData {
   levelId?: number;
@@ -137,8 +139,15 @@ export class GameScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.setDepth(0);
 
-    this._drawPlayfieldShell(g);
-    this._drawConveyorDock(g);
+    if (hasArtTexture(this, ART_KEYS.playfieldShell)) {
+      this.add.image(0, 0, ART_KEYS.playfieldShell)
+        .setOrigin(0)
+        .setDisplaySize(CONFIG.GAME_WIDTH, 1148)
+        .setDepth(0);
+    } else {
+      this._drawPlayfieldShell(g);
+      this._drawConveyorDock(g);
+    }
     this._drawWallRegions();
   }
 
@@ -148,14 +157,28 @@ export class GameScene extends Phaser.Scene {
       { x: 626, y: 130 },
       { x: 674, y: 168 },
       { x: 686, y: 632 },
-      { x: 646, y: 684 },
-      { x: 468, y: 720 },
-      { x: 426, y: 760 },
-      { x: 426, y: 832 },
-      { x: 294, y: 832 },
-      { x: 294, y: 760 },
-      { x: 252, y: 720 },
-      { x: 76, y: 684 },
+      { x: 676, y: 666 },
+      { x: 646, y: 696 },
+      { x: 500, y: 724 },
+      { x: 454, y: 746 },
+      { x: 426, y: 780 },
+      { x: 426, y: 812 },
+      { x: 624, y: 812 },
+      { x: 666, y: 846 },
+      { x: 682, y: 892 },
+      { x: 682, y: 1088 },
+      { x: 640, y: 1128 },
+      { x: 80, y: 1128 },
+      { x: 38, y: 1088 },
+      { x: 38, y: 892 },
+      { x: 54, y: 846 },
+      { x: 96, y: 812 },
+      { x: 294, y: 812 },
+      { x: 294, y: 780 },
+      { x: 266, y: 746 },
+      { x: 220, y: 724 },
+      { x: 76, y: 696 },
+      { x: 44, y: 666 },
       { x: 34, y: 632 },
       { x: 48, y: 166 },
     ] as const;
@@ -166,12 +189,24 @@ export class GameScene extends Phaser.Scene {
       { x: 644, y: 190 },
       { x: 656, y: 612 },
       { x: 612, y: 646 },
-      { x: 450, y: 676 },
-      { x: 406, y: 722 },
-      { x: 406, y: 782 },
-      { x: 314, y: 782 },
-      { x: 314, y: 722 },
-      { x: 270, y: 676 },
+      { x: 484, y: 670 },
+      { x: 436, y: 698 },
+      { x: 398, y: 746 },
+      { x: 398, y: 796 },
+      { x: 602, y: 830 },
+      { x: 636, y: 868 },
+      { x: 642, y: 912 },
+      { x: 642, y: 1062 },
+      { x: 612, y: 1086 },
+      { x: 108, y: 1086 },
+      { x: 78, y: 1062 },
+      { x: 78, y: 912 },
+      { x: 84, y: 868 },
+      { x: 118, y: 830 },
+      { x: 322, y: 796 },
+      { x: 322, y: 746 },
+      { x: 284, y: 698 },
+      { x: 236, y: 670 },
       { x: 108, y: 646 },
       { x: 66, y: 616 },
       { x: 74, y: 190 },
@@ -183,62 +218,9 @@ export class GameScene extends Phaser.Scene {
     this._strokePolygon(g, shell, 22, 0x38598e, 0.52, 10);
     this._strokePolygon(g, shell, 14, 0x466aa0, 0.96);
     this._strokePolygon(g, shell, 4, 0xd7ecf4, 0.26, -2);
-
-    const mouth = [
-      { x: 266, y: 694 },
-      { x: 454, y: 694 },
-      { x: 410, y: 762 },
-      { x: 410, y: 838 },
-      { x: 310, y: 838 },
-      { x: 310, y: 762 },
-    ] as const;
-    this._fillPolygon(g, mouth, 0x38598e, 0.18, 8);
-    this._fillPolygon(g, mouth, 0xf4f8ff, 0.96);
-    this._strokePolygon(g, mouth, 7, 0x466aa0, 0.52);
-    this._strokePolygon(g, [
-      { x: 286, y: 708 },
-      { x: 434, y: 708 },
-      { x: 398, y: 762 },
-      { x: 398, y: 812 },
-      { x: 322, y: 812 },
-      { x: 322, y: 762 },
-    ], 3, 0xffffff, 0.28);
   }
 
   private _drawConveyorDock(g: Phaser.GameObjects.Graphics): void {
-    const dock = [
-      { x: 96, y: 806 },
-      { x: 292, y: 806 },
-      { x: 292, y: 760 },
-      { x: 322, y: 728 },
-      { x: 398, y: 728 },
-      { x: 428, y: 760 },
-      { x: 428, y: 806 },
-      { x: 624, y: 806 },
-      { x: 666, y: 840 },
-      { x: 682, y: 890 },
-      { x: 682, y: 1088 },
-      { x: 640, y: 1128 },
-      { x: 80, y: 1128 },
-      { x: 38, y: 1088 },
-      { x: 38, y: 890 },
-      { x: 54, y: 840 },
-    ] as const;
-
-    this._fillPolygon(g, dock, 0x324b82, 0.24, 14);
-    this._fillPolygon(g, dock, 0xf4f8ff, 1);
-    this._fillPolygon(g, [
-      { x: 118, y: 826 },
-      { x: 602, y: 826 },
-      { x: 632, y: 854 },
-      { x: 642, y: 890 },
-      { x: 78, y: 890 },
-      { x: 88, y: 854 },
-    ], 0xffffff, 0.2);
-    this._strokePolygon(g, dock, 18, 0x38598e, 0.44, 10);
-    this._strokePolygon(g, dock, 10, UI.BLUE_STROKE, 0.9);
-    this._strokePolygon(g, dock, 3, 0xffffff, 0.32, -2);
-
     const boxArea = CONFIG.BOX_COLUMNS.AREA;
     g.fillStyle(0x4969a1, 0.16);
     g.fillRoundedRect(boxArea.x, boxArea.y - 22, boxArea.width, boxArea.height + 48, 22);
@@ -414,13 +396,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _drawHUD(): void {
-    const back = addBubbleButton(this, 48, 48, 80, 80, '<', {
-      fill: UI.PRIMARY,
-      dark: UI.PRIMARY_DARK,
-      fontSize: '40px',
-      radius: 18,
-      depth: 500,
-    });
+    const back = this._addSettingsBackButton();
     back.on('pointerup', () => {
       this.scene.start(this.fromEditor ? 'EditorScene' : 'LevelSelectScene');
     });
@@ -433,12 +409,14 @@ export class GameScene extends Phaser.Scene {
       depth: 500,
     });
 
-    const countPill = addHudPill(this, CONFIG.GAME_WIDTH - 96, 48, 168, 58, '0/24', {
-      fill: UI.ACCENT,
-      dark: UI.ACCENT_DARK,
+    const countPill = addHudPill(this, CONFIG.GAME_WIDTH - 132, 48, 170, 58, '0/24', {
+      fill: UI.PRIMARY,
+      dark: UI.PRIMARY_DARK,
       fontSize: '24px',
       depth: 500,
     });
+    this._addHudIcon(hasArtTexture(this, ART_KEYS.coin) ? ART_KEYS.coin : null, CONFIG.GAME_WIDTH - 196, 48, 42);
+    this._addHudIcon(hasArtTexture(this, ART_KEYS.plusButton) ? ART_KEYS.plusButton : null, CONFIG.GAME_WIDTH - 42, 48, 76);
     this.conveyorLabel = countPill.labelText;
     this.time.addEvent({
       delay: 100,
@@ -448,6 +426,30 @@ export class GameScene extends Phaser.Scene {
         this.conveyorLabel?.setText(`${this.conveyor.count()}/${CONFIG.CONVEYOR.TOTAL_CAPACITY}`);
       },
     });
+  }
+
+  private _addSettingsBackButton(): Phaser.GameObjects.Container {
+    if (!hasArtTexture(this, ART_KEYS.settingsButton)) {
+      return addBubbleButton(this, 48, 48, 80, 80, '<', {
+        fill: UI.PRIMARY,
+        dark: UI.PRIMARY_DARK,
+        fontSize: '40px',
+        radius: 18,
+        depth: 500,
+      });
+    }
+
+    const container = this.add.container(48, 48);
+    container.setDepth(500);
+    container.add(this.add.image(0, 0, ART_KEYS.settingsButton).setDisplaySize(88, 88));
+    container.setSize(80, 80);
+    attachHitZone(this, container, 80, 80, { depth: 501 });
+    return container;
+  }
+
+  private _addHudIcon(key: string | null, x: number, y: number, size: number): void {
+    if (!key) return;
+    this.add.image(x, y, key).setDisplaySize(size, size).setDepth(510);
   }
 
   private _createBoxColumns(columnData: readonly BoxColumnConfig[]): BoxColumn[] {

@@ -1,3 +1,4 @@
+import { ART_KEYS, blockArtKey, hasArtTexture } from '../assets/artAssets.js';
 import { getColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
 import type { BlockRecord, ColorId } from '../sim/types.js';
@@ -80,6 +81,15 @@ export class Block {
 
     const container = scene.add.container(0, 0);
     container.setAlpha(alpha);
+
+    const assetKey = showQuestion
+      ? ART_KEYS.blockHidden
+      : blockArtKey(colorId, showMarbles ? 'open' : 'covered');
+    if (hasArtTexture(scene, assetKey)) {
+      const image = scene.add.image(0, 0, assetKey).setDisplaySize(size, size);
+      container.add(image);
+      return container;
+    }
 
     const g = scene.add.graphics();
     g.fillStyle(0x2d477a, 0.22);
