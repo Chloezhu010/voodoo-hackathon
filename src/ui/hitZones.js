@@ -1,7 +1,8 @@
 export function attachHitZone(scene, container, width, height, options = {}) {
-  const hitZone = scene.add.zone(0, 0, width, height);
+  const hitZone = scene.add.zone(container.x, container.y, width, height);
   hitZone.setOrigin(0.5);
   hitZone.setInteractive({ useHandCursor: options.useHandCursor !== false });
+  if (Number.isFinite(options.depth)) hitZone.setDepth(options.depth);
 
   ['pointerover', 'pointerout', 'pointerdown', 'pointerup'].forEach((eventName) => {
     hitZone.on(eventName, (...args) => {
@@ -9,7 +10,9 @@ export function attachHitZone(scene, container, width, height, options = {}) {
     });
   });
 
-  container.add(hitZone);
+  container.once('destroy', () => {
+    if (hitZone.scene) hitZone.destroy();
+  });
   container.hitZone = hitZone;
   return hitZone;
 }

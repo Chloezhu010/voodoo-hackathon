@@ -24,12 +24,12 @@ export const CONFIG = {
   },
 
   CONVEYOR: {
-    AREA: { x: 40, y: 730, width: 640, height: 320 },
+    AREA: { x: 40, y: 760, width: 640, height: 320 },
     SLOTS_PER_LAYER: 12,
     TOTAL_CAPACITY: 24,
     DEFAULT_SPEED: 0.18,
-    UPPER_LAYER_Y_OFFSET: -100,
-    LOWER_LAYER_Y_OFFSET: 100,
+    UPPER_LAYER_Y_OFFSET: -75,
+    LOWER_LAYER_Y_OFFSET: 75,
     CORNER_RADIUS: 50
   },
 
@@ -56,12 +56,21 @@ export const CONFIG = {
 };
 
 export const UI = {
-  BACKGROUND: 0x1a1a2e,
-  PANEL: 0x2d2d44,
-  PANEL_DARK: 0x222238,
-  PANEL_LIGHT: 0x3a3a55,
-  PRIMARY: 0xff6b9d,
+  BACKGROUND: 0x6f8fc8,
+  BACKGROUND_TOP: 0x7fa2d8,
+  BACKGROUND_BOTTOM: 0x5f7fba,
+  PANEL: 0xe4f2f8,
+  PANEL_DARK: 0x46659d,
+  PANEL_LIGHT: 0xf5fbff,
+  PRIMARY: 0xa66bf0,
+  PRIMARY_DARK: 0x7442ba,
+  PRIMARY_LIGHT: 0xc99cff,
+  ACCENT: 0xffbd26,
+  ACCENT_DARK: 0xe88712,
+  BLUE_STROKE: 0x4969a1,
+  SOFT_SHADOW: 0x324b82,
   TEXT: '#ffffff',
-  MUTED_TEXT: '#a0a0b8',
-  GOLD: 0xffd86b
+  DARK_TEXT: '#24406f',
+  MUTED_TEXT: '#5f78a8',
+  GOLD: 0xffd236
 };

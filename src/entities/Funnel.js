@@ -1,4 +1,4 @@
-import { CONFIG } from '../config/constants.js';
+import { CONFIG, UI } from '../config/constants.js';
 
 export default class Funnel {
   constructor(scene) {
@@ -20,8 +20,19 @@ export default class Funnel {
     const bottomLeft = { x: area.x + area.width * 0.42, y: area.y + area.height - 10 };
 
     this.graphics.clear();
-    this.graphics.fillStyle(0xffffff, 0.08);
-    this.graphics.lineStyle(4, 0xffffff, 0.22);
+    this.graphics.fillStyle(0x2d477a, 0.18);
+    this.graphics.lineStyle(8, UI.BLUE_STROKE, 0.72);
+    this.graphics.beginPath();
+    this.graphics.moveTo(topLeft.x - 8, topLeft.y + 8);
+    this.graphics.lineTo(topRight.x + 8, topRight.y + 8);
+    this.graphics.lineTo(bottomRight.x + 6, bottomRight.y + 8);
+    this.graphics.lineTo(bottomLeft.x - 6, bottomLeft.y + 8);
+    this.graphics.closePath();
+    this.graphics.fillPath();
+    this.graphics.strokePath();
+
+    this.graphics.fillStyle(0xf4f8ff, 1);
+    this.graphics.lineStyle(4, 0xffffff, 0.7);
     this.graphics.beginPath();
     this.graphics.moveTo(topLeft.x, topLeft.y);
     this.graphics.lineTo(topRight.x, topRight.y);

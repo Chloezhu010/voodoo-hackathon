@@ -20,9 +20,17 @@ export default class Box {
     const color = getColorDefinition(this.color);
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(color.hex, 0.86);
+    bg.fillStyle(0x2d477a, 0.2);
+    bg.fillRoundedRect(-width / 2 + 5, -height / 2 + 7, width, height, 10);
+    bg.fillStyle(0x000000, 0.14);
+    bg.fillRoundedRect(-width / 2, -height / 2 + 8, width, height, 8);
+    bg.fillStyle(color.hex, 1);
     bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-    bg.lineStyle(2, 0x000000, 0.28);
+    bg.fillStyle(0xffffff, 0.22);
+    bg.fillRoundedRect(-width / 2 + 6, -height / 2 + 5, width - 12, 13, 7);
+    bg.fillStyle(0x000000, 0.12);
+    bg.fillRoundedRect(-width / 2 + 4, height / 2 - 13, width - 8, 9, 5);
+    bg.lineStyle(3, 0x29457a, 0.4);
     bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
     this.container.add(bg);
 
@@ -30,9 +38,11 @@ export default class Box {
     for (let i = 0; i < this.capacity; i += 1) {
       const x = -width / 2 + (i + 1) * (width / (this.capacity + 1));
       const marker = this.scene.add.graphics();
-      marker.fillStyle(0x000000, 0.12);
-      marker.fillCircle(x, 0, radius + 1);
-      marker.lineStyle(2, 0xffffff, 0.42);
+      marker.fillStyle(0x23385f, 0.28);
+      marker.fillCircle(x, 0, radius + 3);
+      marker.fillStyle(0xffffff, 0.16);
+      marker.fillCircle(x - 2, -2, radius);
+      marker.lineStyle(2, 0xffffff, 0.5);
       marker.strokeCircle(x, 0, radius);
       this.container.add(marker);
       this.slotMarkers.push({ x, y: 0 });
@@ -70,10 +80,14 @@ export default class Box {
     const color = getColorDefinition(marble?.color || this.color);
 
     const filled = this.scene.add.graphics();
+    filled.fillStyle(0x23385f, 0.2);
+    filled.fillCircle(marker.x + 2, marker.y + 3, CONFIG.BOX_COLUMNS.SLOT_RADIUS + 1);
     filled.fillStyle(color.hex, 1);
     filled.fillCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
-    filled.fillStyle(0xffffff, 0.38);
+    filled.fillStyle(0xffffff, 0.42);
     filled.fillCircle(marker.x - 4, marker.y - 4, 4);
+    filled.lineStyle(2, 0xffffff, 0.36);
+    filled.strokeCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
     this.container.add(filled);
 
     this.visual_filled += 1;

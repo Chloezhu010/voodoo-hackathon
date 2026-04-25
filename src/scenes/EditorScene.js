@@ -4,6 +4,7 @@ import Block from '../entities/Block.js';
 import EditorState from '../systems/EditorState.js';
 import LevelLoader from '../systems/LevelLoader.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
+import { drawSkyBackground } from '../ui/casualStyle.js';
 
 const GRID_START = { x: 120, y: 160 };
 const EDITOR_BLOCK_SIZE = 72;
@@ -15,7 +16,7 @@ export default class EditorScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawSkyBackground(this);
     this.editorState = new EditorState();
     this.hoverCell = null;
     this.modal = null;
@@ -396,7 +397,7 @@ export default class EditorScene extends Phaser.Scene {
 
     const text = this.add.text(0, 0, label, {
       fontSize: label.length > 10 ? '18px' : '20px',
-      color: '#ffffff',
+      color: fillColor === UI.PANEL || fillColor === UI.PANEL_LIGHT ? UI.DARK_TEXT : '#ffffff',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 

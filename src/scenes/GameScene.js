@@ -7,7 +7,13 @@ import Marble from '../entities/Marble.js';
 import OutputPort from '../entities/OutputPort.js';
 import BoardManager from '../systems/BoardManager.js';
 import LevelLoader from '../systems/LevelLoader.js';
-import { makeWorldHitZone } from '../ui/hitZones.js';
+import {
+  addBubbleButton,
+  addHudPill,
+  addOutlinedText,
+  drawBubblePanel,
+  drawSkyBackground
+} from '../ui/casualStyle.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -44,7 +50,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawSkyBackground(this);
     this._drawAreas();
     this._drawHUD();
 
@@ -102,75 +108,93 @@ export default class GameScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.setDepth(0);
 
-    g.fillStyle(UI.PANEL_DARK, 1);
-    g.fillRoundedRect(
-      CONFIG.BOARD_AREA.x,
-      CONFIG.BOARD_AREA.y,
-      CONFIG.BOARD_AREA.width,
-      CONFIG.BOARD_AREA.height,
-      28
-    );
-    g.lineStyle(3, 0xffffff, 0.08);
-    g.strokeRoundedRect(
-      CONFIG.BOARD_AREA.x,
-      CONFIG.BOARD_AREA.y,
-      CONFIG.BOARD_AREA.width,
-      CONFIG.BOARD_AREA.height,
-      28
-    );
+    drawBubblePanel(g, 28, 122, 664, 548, 48, {
+      fill: 0xa8c8d7,
+      alpha: 0.9,
+      stroke: UI.BLUE_STROKE,
+      strokeWidth: 8,
+      shadowOffset: 12,
+      shadowAlpha: 0.32,
+      highlightAlpha: 0.22
+    });
 
-    g.fillStyle(0xffffff, 0.04);
-    g.fillRoundedRect(
-      CONFIG.FUNNEL_AREA.x - 12,
-      CONFIG.FUNNEL_AREA.y - 10,
-      CONFIG.FUNNEL_AREA.width + 24,
-      CONFIG.FUNNEL_AREA.height + 20,
-      20
-    );
+    g.fillStyle(0xe9f2ff, 1);
+    g.beginPath();
+    g.moveTo(28, 602);
+    g.lineTo(292, 602);
+    g.lineTo(332, 650);
+    g.lineTo(388, 650);
+    g.lineTo(428, 602);
+    g.lineTo(692, 602);
+    g.lineTo(692, 644);
+    g.lineTo(646, 704);
+    g.lineTo(432, 744);
+    g.lineTo(388, 706);
+    g.lineTo(332, 706);
+    g.lineTo(288, 744);
+    g.lineTo(74, 704);
+    g.lineTo(28, 644);
+    g.closePath();
+    g.fillPath();
+    g.lineStyle(7, UI.BLUE_STROKE, 0.8);
+    g.strokePath();
 
     const conveyorArea = CONFIG.CONVEYOR.AREA;
-    g.fillStyle(0xffffff, 0.035);
-    g.fillRoundedRect(
+    drawBubblePanel(
+      g,
       conveyorArea.x,
-      conveyorArea.y,
+      conveyorArea.y - 44,
       conveyorArea.width,
-      conveyorArea.height,
-      30
+      conveyorArea.height + 72,
+      44,
+      {
+        fill: 0xf4f8ff,
+        stroke: UI.BLUE_STROKE,
+        strokeWidth: 6,
+        shadowOffset: 10,
+        shadowAlpha: 0.22,
+        highlightAlpha: 0.2
+      }
     );
 
     const boxArea = CONFIG.BOX_COLUMNS.AREA;
-    g.fillStyle(0xffffff, 0.025);
+    g.fillStyle(0x4969a1, 0.16);
     g.fillRoundedRect(
       boxArea.x,
-      boxArea.y,
+      boxArea.y - 22,
       boxArea.width,
-      boxArea.height,
+      boxArea.height + 48,
       22
     );
   }
 
   _drawHUD() {
-    this.add.text(48, 48, '<', {
-      fontSize: '46px',
-      color: UI.TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(500);
-    makeWorldHitZone(this, 48, 48, 80, 80, () => {
+    const back = addBubbleButton(this, 48, 48, 80, 80, '<', {
+      fill: UI.PRIMARY,
+      dark: UI.PRIMARY_DARK,
+      fontSize: '40px',
+      radius: 18,
+      depth: 500
+    });
+    back.on('pointerup', () => {
       this.scene.start(this.fromEditor ? 'EditorScene' : 'LevelSelectScene');
-    }, { depth: 520 });
+    });
 
     const title = this.levelData?.name || 'Level';
-    this.add.text(CONFIG.GAME_WIDTH / 2, 46, title.toUpperCase(), {
-      fontSize: '30px',
-      color: UI.TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(500);
+    addHudPill(this, CONFIG.GAME_WIDTH / 2, 48, 230, 58, title.toUpperCase(), {
+      fill: UI.PRIMARY,
+      dark: UI.PRIMARY_DARK,
+      fontSize: title.length > 12 ? '18px' : '22px',
+      depth: 500
+    });
 
-    this.conveyorLabel = this.add.text(CONFIG.GAME_WIDTH - 42, 48, '', {
-      fontSize: '20px',
-      color: UI.MUTED_TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(1, 0.5).setDepth(500);
+    const countPill = addHudPill(this, CONFIG.GAME_WIDTH - 96, 48, 168, 58, '0/24', {
+      fill: UI.ACCENT,
+      dark: UI.ACCENT_DARK,
+      fontSize: '24px',
+      depth: 500
+    });
+    this.conveyorLabel = countPill.labelText;
     this.time.addEvent({
       delay: 100,
       loop: true,
@@ -331,8 +355,14 @@ export default class GameScene extends Phaser.Scene {
     container.setDepth(1000);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.72);
-    bg.fillRoundedRect(-300, -42, 600, 84, 18);
+    drawBubblePanel(bg, -300, -42, 600, 84, 24, {
+      fill: UI.PRIMARY,
+      stroke: UI.PRIMARY_DARK,
+      strokeWidth: 4,
+      shadowOffset: 7,
+      shadowAlpha: 0.18,
+      highlightAlpha: 0.24
+    });
     container.add(bg);
 
     const text = this.add.text(0, 0, message, {
@@ -356,15 +386,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawLoadError(error) {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
-    this.add.text(CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 - 40, 'LEVEL LOAD ERROR', {
+    drawSkyBackground(this);
+    const panel = this.add.graphics();
+    drawBubblePanel(panel, 70, 470, 580, 240, 36, {
+      fill: 0xf3fbff,
+      stroke: UI.BLUE_STROKE,
+      strokeWidth: 6,
+      shadowOffset: 10
+    });
+    addOutlinedText(this, CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 - 46, 'LEVEL LOAD ERROR', {
       fontSize: '34px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+      color: '#ff8ca9',
+      stroke: '#97345f',
+      strokeThickness: 6
+    });
     this.add.text(CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 + 20, error.message, {
       fontSize: '18px',
-      color: '#ff9a9a',
+      color: UI.DARK_TEXT,
       fontStyle: 'bold',
       align: 'center',
       wordWrap: { width: 560 }

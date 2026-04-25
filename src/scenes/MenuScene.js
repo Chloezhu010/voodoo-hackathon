@@ -1,5 +1,5 @@
 import { CONFIG, UI } from '../config/constants.js';
-import { attachHitZone } from '../ui/hitZones.js';
+import { addBubbleButton, addOutlinedText, drawSkyBackground } from '../ui/casualStyle.js';
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
@@ -7,80 +7,82 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawSkyBackground(this);
+    this._drawDecor();
 
-    this.add.text(CONFIG.GAME_WIDTH / 2, 200, 'Marble Sort!', {
-      fontSize: '72px',
-      color: UI.TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    addOutlinedText(this, CONFIG.GAME_WIDTH / 2, 210, 'MARBLE', {
+      fontSize: '78px',
+      stroke: '#3f5d96',
+      strokeThickness: 9,
+      shadowY: 6
+    });
+    addOutlinedText(this, CONFIG.GAME_WIDTH / 2, 286, 'SORT!', {
+      fontSize: '86px',
+      color: '#ffe34a',
+      stroke: '#d56d11',
+      strokeThickness: 9,
+      shadowY: 6,
+      shadowColor: '#9f5510'
+    });
 
-    this.add.text(CONFIG.GAME_WIDTH / 2, 290, 'Tap. Match. Sort.', {
-      fontSize: '28px',
-      color: UI.MUTED_TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    const playButton = this._makeButton(
+    const playButton = addBubbleButton(
+      this,
       CONFIG.GAME_WIDTH / 2,
       600,
-      400,
-      100,
+      430,
+      112,
       'PLAY',
-      UI.PRIMARY,
-      0xffffff
+      {
+        fill: UI.ACCENT,
+        dark: UI.ACCENT_DARK,
+        fontSize: '44px',
+        textStroke: '#b55a10'
+      }
     );
     playButton.on('pointerup', () => this.scene.start('LevelSelectScene'));
 
-    const editorButton = this._makeButton(
+    const editorButton = addBubbleButton(
+      this,
       CONFIG.GAME_WIDTH / 2,
       740,
       400,
-      80,
+      86,
       'LEVEL EDITOR',
-      UI.PANEL,
-      0xffffff
+      {
+        fill: UI.PRIMARY,
+        dark: UI.PRIMARY_DARK,
+        fontSize: '29px'
+      }
     );
     editorButton.on('pointerup', () => this.scene.start('EditorScene'));
 
-    this.add.text(CONFIG.GAME_WIDTH / 2, 1200, 'Made for Voodoo Game Jam 2026', {
-      fontSize: '20px',
-      color: UI.MUTED_TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    addOutlinedText(this, CONFIG.GAME_WIDTH / 2, 1192, 'VOODOO JAM 2026', {
+      fontSize: '22px',
+      color: '#d7e8ff',
+      stroke: '#4c6ca4',
+      strokeThickness: 4,
+      shadowY: 2
+    });
   }
 
-  _makeButton(x, y, width, height, label, fillColor, textColor) {
-    const container = this.add.container(x, y);
-    const background = this.add.graphics();
-    background.fillStyle(fillColor, 1);
-    background.fillRoundedRect(-width / 2, -height / 2, width, height, 24);
-    background.lineStyle(2, 0xffffff, fillColor === UI.PRIMARY ? 0.15 : 0.25);
-    background.strokeRoundedRect(-width / 2, -height / 2, width, height, 24);
+  _drawDecor() {
+    const g = this.add.graphics();
+    g.setDepth(-20);
 
-    const text = this.add.text(0, 0, label, {
-      fontSize: height >= 100 ? '38px' : '30px',
-      color: `#${textColor.toString(16).padStart(6, '0')}`,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    container.add([background, text]);
-    container.setSize(width, height);
-    attachHitZone(this, container, width, height);
-
-    container.on('pointerover', () => {
-      this.tweens.add({ targets: container, scale: 1.05, duration: 120, ease: 'Quad.easeOut' });
+    [
+      [132, 430, 0xff9f1a, 32],
+      [202, 488, 0xffe424, 22],
+      [552, 430, 0x18d757, 30],
+      [494, 500, 0x315df4, 24],
+      [146, 872, 0xff5aa7, 26],
+      [584, 898, 0xa66bf0, 34]
+    ].forEach(([x, y, color, radius]) => {
+      g.fillStyle(0x3c5b92, 0.24);
+      g.fillCircle(x + 5, y + 7, radius);
+      g.fillStyle(color, 1);
+      g.fillCircle(x, y, radius);
+      g.fillStyle(0xffffff, 0.42);
+      g.fillCircle(x - radius * 0.32, y - radius * 0.34, radius * 0.28);
     });
-    container.on('pointerout', () => {
-      this.tweens.add({ targets: container, scale: 1, duration: 120, ease: 'Quad.easeOut' });
-    });
-    container.on('pointerdown', () => {
-      this.tweens.add({ targets: container, scale: 0.95, duration: 80, ease: 'Quad.easeOut' });
-    });
-    container.on('pointerup', () => {
-      this.tweens.add({ targets: container, scale: 1.05, duration: 80, ease: 'Quad.easeOut' });
-    });
-
-    return container;
   }
 }
