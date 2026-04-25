@@ -556,6 +556,8 @@ async function runConveyorBoxEdgeCases(client) {
 async function runBrowserChecks(client) {
   await client.send('Runtime.enable');
   await client.send('Page.enable');
+  await client.send('Network.enable');
+  await client.send('Network.setCacheDisabled', { cacheDisabled: true });
   await client.send('Log.enable');
   await client.send('Console.enable');
   await client.send('Page.navigate', { url: `${BASE_URL}/?smoke=1` });
