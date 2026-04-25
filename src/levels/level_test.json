@@ -12,7 +12,7 @@
     { "col": 2, "boxes": [] },
     { "col": 3, "boxes": [] }
   ],
-  "conveyor_speed": 0.18,
+  "conveyor_speed": 0.25,
   "gravity_flip_enabled": false,
   "magnet_count": 0
 }

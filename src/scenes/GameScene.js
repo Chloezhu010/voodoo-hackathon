@@ -68,7 +68,6 @@ export default class GameScene extends Phaser.Scene {
 
     this.events.on('block-tapped', this._onBlockTapped, this);
     this.events.on('conveyor-overflow', this._onConveyorOverflow, this);
-    this.events.on('box-full', this._onBoxFull, this);
     this.events.on('column-cleared', this._onColumnCleared, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._shutdown, this);
     this.input.keyboard.on('keydown-D', this._toggleDebugOverlay, this);
@@ -85,15 +84,16 @@ export default class GameScene extends Phaser.Scene {
 
   update(_time, delta) {
     this.conveyor?.update(delta);
+    this.funnel?.update(this.conveyor, delta);
   }
 
   _shutdown() {
     this.events.off('block-tapped', this._onBlockTapped, this);
     this.events.off('conveyor-overflow', this._onConveyorOverflow, this);
-    this.events.off('box-full', this._onBoxFull, this);
     this.events.off('column-cleared', this._onColumnCleared, this);
     this.input.keyboard.off('keydown-D', this._toggleDebugOverlay, this);
     this._debugTimer?.remove(false);
+    this.funnel?.destroy();
     this.blocks?.forEach((block) => block.destroy());
     this.blocks = [];
   }
@@ -206,8 +206,6 @@ export default class GameScene extends Phaser.Scene {
     const startX = block.container.x;
     const startY = block.container.y;
     const color = block.data.color;
-    const funnelX = CONFIG.FUNNEL_AREA.x + CONFIG.FUNNEL_AREA.width / 2;
-    const funnelY = CONFIG.FUNNEL_AREA.y + CONFIG.FUNNEL_AREA.height - 8;
 
     block.shatter();
     this.boardManager.onBlockCleared(block);
@@ -222,31 +220,21 @@ export default class GameScene extends Phaser.Scene {
           color
         );
         this.marbles.push(marble);
-        marble.state = 'falling-to-funnel';
+        const funnelSlot = this.funnel.reserveSlot(marble);
+        const mouth = this.funnel.getMouthPosition(funnelSlot);
+        marble.state = 'moving-to-funnel-mouth';
         marble.flyTo(
-          funnelX + Phaser.Math.Between(-10, 10),
-          funnelY,
-          CONFIG.MARBLE_FALL_DURATION,
-          'Cubic.easeIn',
+          mouth.x,
+          mouth.y,
+          CONFIG.MARBLE_TO_FUNNEL_MOUTH_DURATION,
+          'Linear',
           () => {
             if (this.isEnding || marble.state === 'destroyed') return;
-            const entry = this.conveyor.track.positionAt(this.conveyor.track.entryT);
-            marble.flyTo(
-              entry.x,
-              entry.y,
-              CONFIG.MARBLE_TO_PORT_DURATION,
-              'Cubic.easeOut',
-              () => this.conveyor.acceptMarble(marble)
-            );
+            this.funnel.dropMarble(marble, funnelSlot);
           }
         );
       });
     }
-  }
-
-  _onBoxFull(box) {
-    const column = this.boxColumns.find((candidate) => candidate.boxes.includes(box));
-    column?.onBoxFull(box);
   }
 
   _onColumnCleared() {
@@ -311,15 +299,19 @@ export default class GameScene extends Phaser.Scene {
   _updateDebugOverlay() {
     if (!this._debugText || !this._debugEnabled) return;
     const inFlightStates = new Set([
-      'falling-to-funnel',
+      'moving-to-funnel-mouth',
+      'falling-into-funnel',
+      'in-funnel-physics',
       'dropping-to-box',
-      'flying-to-magnet-target'
+      'flying-to-magnet-target',
+      'leaving-funnel'
     ]);
     const inFlight = this.marbles.filter((marble) => inFlightStates.has(marble.state)).length;
     const lines = [
       `Conveyor ${this.conveyor?.count() ?? 0}/${CONFIG.CONVEYOR.TOTAL_CAPACITY}`,
       `Speed ${this.conveyor?.speed ?? 0}`,
       `Paused ${Boolean(this.conveyor?.isPaused)}`,
+      `Funnel ${this.funnel?.count() ?? 0}/${CONFIG.FUNNEL_BUFFER.CAPACITY}`,
       `Input locked ${this._inputLocked}`,
       `In flight ${inFlight}`
     ];
