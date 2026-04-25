@@ -8,14 +8,17 @@ export default class Block {
     this.boardSize = boardSize;
     this.isCovered = false;
     this.isCleared = false;
+    this._inputEnabled = null;
 
     const position = Block.getBoardPosition(data.col, data.row, boardSize);
     this.container = scene.add.container(position.x, position.y);
     this.container.setDepth(100 + data.z);
     this.container.setSize(CONFIG.BLOCK_SIZE, CONFIG.BLOCK_SIZE);
+    this.visualLayer = scene.add.container(0, 0);
+    this.container.add(this.visualLayer);
     this.hitZone = scene.add.zone(position.x, position.y, CONFIG.BLOCK_SIZE, CONFIG.BLOCK_SIZE);
-    this.hitZone.setDepth(1000 + data.z);
     this.hitZone.setOrigin(0.5);
+    this.hitZone.setDepth(1000 + data.z);
 
     this.render();
     this.setupInteraction();
@@ -80,7 +83,7 @@ export default class Block {
   }
 
   render() {
-    this.container.removeAll(true);
+    this.visualLayer.removeAll(true);
 
     const showQuestion = this.data.is_hidden && this.isCovered;
     const visual = Block.createVisual(this.scene, this.data.color, {
@@ -88,17 +91,24 @@ export default class Block {
       covered: this.isCovered,
       size: CONFIG.BLOCK_SIZE
     });
-    this.container.add(visual);
-    this.container.setAlpha(this.isCovered && !showQuestion ? 0.75 : 1);
+    this.visualLayer.add(visual);
+    this.visualLayer.setAlpha(this.isCovered && !showQuestion ? 0.75 : 1);
   }
 
   setupInteraction() {
     this.hitZone.setInteractive({ useHandCursor: true });
+    this._bindHitZoneEvents();
+  }
 
+  _bindHitZoneEvents() {
+    this.hitZone.off('pointerover');
+    this.hitZone.off('pointerout');
+    this.hitZone.off('pointerdown');
+    this.hitZone.off('pointerup');
     this.hitZone.on('pointerover', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.tweens.add({
-        targets: this.container,
+        targets: this.visualLayer,
         scale: 1.08,
         duration: 100,
         ease: 'Quad.easeOut'
@@ -108,7 +118,7 @@ export default class Block {
     this.hitZone.on('pointerout', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.tweens.add({
-        targets: this.container,
+        targets: this.visualLayer,
         scale: 1,
         duration: 100,
         ease: 'Quad.easeOut'
@@ -118,7 +128,7 @@ export default class Block {
     this.hitZone.on('pointerdown', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.tweens.add({
-        targets: this.container,
+        targets: this.visualLayer,
         scale: 0.94,
         duration: 70,
         ease: 'Quad.easeOut'
@@ -133,12 +143,22 @@ export default class Block {
 
   setInputEnabled(enabled) {
     if (!this.hitZone) return;
+    if (this._inputEnabled === enabled && this.hitZone.input) return;
+    this._inputEnabled = enabled;
 
     if (enabled) {
-      this.hitZone.setInteractive({ useHandCursor: true });
-    } else {
-      this.hitZone.disableInteractive();
+      this.hitZone.setVisible(true);
+      if (this.hitZone.input) {
+        this.hitZone.input.enabled = true;
+      } else {
+        this.hitZone.setInteractive({ useHandCursor: true });
+        this._bindHitZoneEvents();
+      }
+      return;
     }
+
+    if (this.hitZone.input) this.hitZone.input.enabled = false;
+    this.hitZone.setVisible(false);
   }
 
   refreshInteractivity() {
@@ -169,9 +189,9 @@ export default class Block {
   reveal() {
     this.render();
     this.refreshInteractivity();
-    this.container.setScale(0.15, 1);
+    this.visualLayer.setScale(0.15, 1);
     this.scene.tweens.add({
-      targets: this.container,
+      targets: this.visualLayer,
       scaleX: 1,
       scaleY: 1,
       duration: 260,
@@ -184,8 +204,10 @@ export default class Block {
 
     this.isCleared = true;
     this.refreshInteractivity();
+    this.hitZone.removeInteractive();
+    this.hitZone.setVisible(false);
     this.scene.tweens.add({
-      targets: this.container,
+      targets: this.visualLayer,
       scale: 0.1,
       alpha: 0,
       angle: Phaser.Math.Between(-10, 10),
@@ -195,5 +217,19 @@ export default class Block {
         this.container.setVisible(false);
       }
     });
+  }
+
+  destroy() {
+    if (this.hitZone) {
+      this.hitZone.removeAllListeners();
+      this.hitZone.destroy();
+      this.hitZone = null;
+    }
+
+    if (this.container) {
+      this.container.destroy(true);
+      this.container = null;
+      this.visualLayer = null;
+    }
   }
 }

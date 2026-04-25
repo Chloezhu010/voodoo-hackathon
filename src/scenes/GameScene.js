@@ -17,8 +17,10 @@ export default class GameScene extends Phaser.Scene {
     this.levelId = data.levelId || 1;
     this.fromEditor = Boolean(data.fromEditor);
     this.levelKey = LevelLoader.cacheKey(this.levelId);
-    this.canTap = true;
+    this._inputLocked = false;
     this.isEnding = false;
+    this._debugEnabled = false;
+    this._debugText = null;
   }
 
   preload() {
@@ -53,9 +55,12 @@ export default class GameScene extends Phaser.Scene {
     this.boardManager = new BoardManager(this.blocks);
 
     this.events.on('block-tapped', this._onBlockTapped, this);
-    this.events.on('queue-overflow', this._onGameOver, this);
-    this.events.on('tray-completed', this._checkVictory, this);
+    this.events.on('queue-overflow', this._onQueueOverflow, this);
+    this.events.on('tray-completed', this._onTrayCompleted, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._shutdown, this);
+    this.input.keyboard.on('keydown-D', this._toggleDebugOverlay, this);
+
+    this._createGeneration = (this._createGeneration || 0) + 1;
 
     if (this.levelId === 1 && !this.fromEditor) {
       this._showToast(
@@ -67,8 +72,12 @@ export default class GameScene extends Phaser.Scene {
 
   _shutdown() {
     this.events.off('block-tapped', this._onBlockTapped, this);
-    this.events.off('queue-overflow', this._onGameOver, this);
-    this.events.off('tray-completed', this._checkVictory, this);
+    this.events.off('queue-overflow', this._onQueueOverflow, this);
+    this.events.off('tray-completed', this._onTrayCompleted, this);
+    this.input.keyboard.off('keydown-D', this._toggleDebugOverlay, this);
+    this._debugTimer?.remove(false);
+    this.blocks?.forEach((block) => block.destroy());
+    this.blocks = [];
   }
 
   _drawAreas() {
@@ -156,9 +165,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onBlockTapped(block) {
-    if (!this.canTap || this.isEnding || block.isCovered || block.isCleared) return;
+    if (this.isEnding || !block.refreshInteractivity()) return;
 
-    this.canTap = false;
     block.shatter();
     this.boardManager.onBlockCleared(block);
 
@@ -177,26 +185,30 @@ export default class GameScene extends Phaser.Scene {
           startY + Phaser.Math.Between(-8, 8),
           color
         );
+        marble.state = 'falling';
         marble.flyTo(
           funnelX + Phaser.Math.Between(-12, 12),
           funnelY,
           CONFIG.MARBLE_FALL_DURATION,
-          () => this.queue.enqueue(marble),
-          'Cubic.easeIn'
+          'Cubic.easeIn',
+          () => this.queue.enqueue(marble)
         );
       });
     }
+  }
 
-    const unlockDelay = CONFIG.MARBLE_FALL_DURATION + CONFIG.MARBLES_PER_BLOCK * 80 + 320;
-    this.time.delayedCall(unlockDelay, () => {
-      if (!this.isEnding) this.canTap = true;
-    });
+  _onTrayCompleted() {
+    if (this.isEnding) return;
+    this.queue.evaluateMatching();
+    this._checkVictory();
   }
 
   _checkVictory() {
     if (this.isEnding) return;
-    if (!this.trays.every((tray) => tray.isFull())) return;
+    if (!this.trays.every((tray) => tray.isCompleted)) return;
 
+    this._inputLocked = true;
+    this.blocks.forEach((block) => block.refreshInteractivity());
     this.isEnding = true;
     this.time.delayedCall(420, () => {
       this.scene.start('GameOverScene', {
@@ -207,14 +219,58 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  _onGameOver() {
+  _onQueueOverflow() {
     if (this.isEnding) return;
+    this._inputLocked = true;
+    this.blocks.forEach((block) => block.refreshInteractivity());
     this.isEnding = true;
-    this.scene.start('GameOverScene', {
-      result: 'lose',
-      levelId: this.levelId,
-      fromEditor: this.fromEditor
+    this.time.delayedCall(800, () => {
+      this.scene.start('GameOverScene', {
+        result: 'lose',
+        levelId: this.levelId,
+        fromEditor: this.fromEditor
+      });
     });
+  }
+
+  _toggleDebugOverlay() {
+    this._debugEnabled = !this._debugEnabled;
+
+    if (!this._debugText) {
+      this._debugText = this.add.text(18, 92, '', {
+        fontSize: '16px',
+        color: '#a0ffa0',
+        fontStyle: 'bold',
+        backgroundColor: '#000000',
+        padding: { x: 10, y: 8 }
+      }).setDepth(2000);
+    }
+
+    this._debugText.setVisible(this._debugEnabled);
+    this._updateDebugOverlay();
+
+    if (this._debugEnabled && !this._debugTimer) {
+      this._debugTimer = this.time.addEvent({
+        delay: 120,
+        loop: true,
+        callback: () => this._updateDebugOverlay()
+      });
+    }
+  }
+
+  _updateDebugOverlay() {
+    if (!this._debugText || !this._debugEnabled) return;
+    const lines = [
+      `queue ${this.queue?.marbles.length ?? 0}/${this.queue?.capacity ?? 0}`,
+      `inputLocked ${this._inputLocked}`,
+      `ending ${this.isEnding}`
+    ];
+
+    this.trays?.forEach((tray) => {
+      lines.push(`${tray.color}: data ${tray.current_count}/${tray.capacity} visual ${tray.visual_filled}/${tray.capacity}`);
+    });
+
+    this._debugText.setText(lines.join('\n'));
   }
 
   _showToast(message, duration = 2000) {
