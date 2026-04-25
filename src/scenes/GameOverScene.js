@@ -1,5 +1,5 @@
 import { CONFIG, UI } from '../config/constants.js';
-import { attachHitZone } from '../ui/hitZones.js';
+import { addBubbleButton, addOutlinedText, drawBubblePanel, drawSkyBackground } from '../ui/casualStyle.js';
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -13,38 +13,48 @@ export default class GameOverScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
-
-    const overlay = this.add.graphics();
-    overlay.fillStyle(0x000000, 0.72);
-    overlay.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+    drawSkyBackground(this);
 
     const panel = this.add.graphics();
-    panel.fillStyle(UI.PANEL, 1);
-    panel.fillRoundedRect(80, 350, 560, 520, 28);
-    panel.lineStyle(3, 0xffffff, 0.14);
-    panel.strokeRoundedRect(80, 350, 560, 520, 28);
+    drawBubblePanel(panel, 72, 334, 576, 548, 40, {
+      fill: 0xf1fbff,
+      stroke: UI.BLUE_STROKE,
+      strokeWidth: 7,
+      shadowOffset: 12,
+      highlightAlpha: 0.4
+    });
 
     const isWin = this.result === 'win';
-    this.add.text(CONFIG.GAME_WIDTH / 2, 470, isWin ? 'LEVEL CLEAR!' : 'OUT OF SPACE!', {
-      fontSize: '46px',
-      color: isWin ? '#ffd86b' : '#ff9a9a',
+    this._drawBadge(isWin);
+
+    addOutlinedText(
+      this,
+      CONFIG.GAME_WIDTH / 2,
+      492,
+      isWin ? 'LEVEL CLEAR!' : 'OUT OF SPACE!',
+      {
+        fontSize: isWin ? '48px' : '44px',
+        color: isWin ? '#ffe34a' : '#ff8ca9',
+        stroke: isWin ? '#d56d11' : '#a84170',
+        strokeThickness: 7,
+        shadowY: 4,
+        shadowColor: isWin ? '#9f5510' : '#77315a'
+      }
+    );
+
+    this.add.text(CONFIG.GAME_WIDTH / 2, 558, isWin ? 'Boxes cleared' : 'The conveyor is full', {
+      fontSize: '26px',
+      color: UI.DARK_TEXT,
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.add.text(
-      CONFIG.GAME_WIDTH / 2,
-      540,
-      isWin ? 'Boxes cleared' : 'The conveyor is full',
-      {
-        fontSize: '24px',
-        color: UI.MUTED_TEXT,
-        fontStyle: 'bold'
-      }
-    ).setOrigin(0.5);
-
     const primaryLabel = this.fromEditor ? 'BACK TO EDITOR' : 'RETRY';
-    const primaryButton = this._makeButton(CONFIG.GAME_WIDTH / 2, 650, 360, 86, primaryLabel, UI.PRIMARY);
+    const primaryButton = addBubbleButton(this, CONFIG.GAME_WIDTH / 2, 666, 390, 92, primaryLabel, {
+      fill: UI.ACCENT,
+      dark: UI.ACCENT_DARK,
+      textStroke: '#b55a10',
+      fontSize: primaryLabel.length > 8 ? '28px' : '36px'
+    });
     primaryButton.on('pointerup', () => {
       if (this.fromEditor) {
         this.scene.start('EditorScene');
@@ -53,33 +63,37 @@ export default class GameOverScene extends Phaser.Scene {
       }
     });
 
-    const menuButton = this._makeButton(CONFIG.GAME_WIDTH / 2, 760, 360, 76, 'MENU', UI.PANEL_DARK);
+    const menuButton = addBubbleButton(this, CONFIG.GAME_WIDTH / 2, 780, 390, 82, 'MENU', {
+      fill: UI.PRIMARY,
+      dark: UI.PRIMARY_DARK,
+      fontSize: '30px'
+    });
     menuButton.on('pointerup', () => {
       this.scene.start(this.fromEditor ? 'EditorScene' : 'LevelSelectScene');
     });
   }
 
-  _makeButton(x, y, width, height, label, fillColor) {
-    const container = this.add.container(x, y);
-    const bg = this.add.graphics();
-    bg.fillStyle(fillColor, 1);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 20);
-    bg.lineStyle(2, 0xffffff, 0.16);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 20);
+  _drawBadge(isWin) {
+    const g = this.add.graphics();
+    const cx = CONFIG.GAME_WIDTH / 2;
+    const y = 410;
+    const color = isWin ? UI.ACCENT : 0xff6f9f;
+    const dark = isWin ? UI.ACCENT_DARK : 0xb83d70;
+    g.fillStyle(dark, 1);
+    g.fillCircle(cx, y + 8, 64);
+    g.fillStyle(color, 1);
+    g.fillCircle(cx, y, 64);
+    g.fillStyle(0xffffff, 0.28);
+    g.fillCircle(cx - 20, y - 22, 20);
+    g.lineStyle(6, 0xffffff, 0.46);
+    g.strokeCircle(cx, y, 64);
 
-    const text = this.add.text(0, 0, label, {
-      fontSize: label.length > 8 ? '26px' : '30px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    container.add([bg, text]);
-    container.setSize(width, height);
-    attachHitZone(this, container, width, height);
-    container.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.04, duration: 100 }));
-    container.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, duration: 100 }));
-    container.on('pointerdown', () => this.tweens.add({ targets: container, scale: 0.96, duration: 70 }));
-
-    return container;
+    addOutlinedText(this, cx, y - 1, isWin ? '!' : 'X', {
+      fontSize: '64px',
+      stroke: isWin ? '#b55a10' : '#8b2854',
+      strokeThickness: 6,
+      shadowY: 3,
+      shadowColor: isWin ? '#9f5510' : '#77315a'
+    });
   }
 }

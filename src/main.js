@@ -4,14 +4,15 @@ import LevelSelectScene from './scenes/LevelSelectScene.js';
 import GameScene from './scenes/GameScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
 import EditorScene from './scenes/EditorScene.js';
-import { CONFIG } from './config/constants.js';
+import { CONFIG, UI } from './config/constants.js';
+import { colorToCss } from './ui/casualStyle.js';
 
 const gameConfig = {
   type: Phaser.AUTO,
   width: CONFIG.GAME_WIDTH,
   height: CONFIG.GAME_HEIGHT,
   parent: 'game-container',
-  backgroundColor: '#1a1a2e',
+  backgroundColor: colorToCss(UI.BACKGROUND),
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH

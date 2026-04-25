@@ -1,5 +1,6 @@
 import { CONFIG, UI } from '../config/constants.js';
-import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
+import { attachHitZone } from '../ui/hitZones.js';
+import { addBubbleButton, addOutlinedText, drawBubblePanel, drawSkyBackground } from '../ui/casualStyle.js';
 
 const LEVELS = [
   {
@@ -34,20 +35,23 @@ export default class LevelSelectScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawSkyBackground(this);
 
-    const back = this.add.text(50, 50, '←', {
-      fontSize: '48px',
-      color: UI.TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    makeWorldHitZone(this, 50, 50, 80, 80, () => this.scene.start('MenuScene'), { depth: 10 });
+    const back = addBubbleButton(this, 50, 50, 74, 70, '<', {
+      fill: UI.PRIMARY,
+      dark: UI.PRIMARY_DARK,
+      fontSize: '40px',
+      radius: 18,
+      depth: 20
+    });
+    back.on('pointerup', () => this.scene.start('MenuScene'));
 
-    this.add.text(CONFIG.GAME_WIDTH / 2, 160, 'SELECT LEVEL', {
-      fontSize: '48px',
-      color: UI.TEXT,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    addOutlinedText(this, CONFIG.GAME_WIDTH / 2, 158, 'SELECT LEVEL', {
+      fontSize: '50px',
+      stroke: '#3f5d96',
+      strokeThickness: 7,
+      shadowY: 5
+    });
 
     [380, 620, 860].forEach((y, index) => {
       this._makeLevelCard(CONFIG.GAME_WIDTH / 2, y, LEVELS[index]);
@@ -60,47 +64,77 @@ export default class LevelSelectScene extends Phaser.Scene {
     const container = this.add.container(x, y);
 
     const background = this.add.graphics();
-    background.fillStyle(UI.PANEL, 1);
-    background.fillRoundedRect(-width / 2, -height / 2, width, height, 18);
-    background.lineStyle(3, 0xffffff, 0.12);
-    background.strokeRoundedRect(-width / 2, -height / 2, width, height, 18);
+    drawBubblePanel(background, -width / 2, -height / 2, width, height, 30, {
+      fill: 0xe9f5fa,
+      stroke: UI.BLUE_STROKE,
+      strokeWidth: 5,
+      shadowOffset: 9,
+      highlightAlpha: 0.36
+    });
 
-    const number = this.add.text(-200, 0, level.number, {
-      fontSize: '64px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    const badge = this.add.graphics();
+    badge.fillStyle(UI.PRIMARY_DARK, 1);
+    badge.fillRoundedRect(-238, -70, 112, 140, 26);
+    badge.fillStyle(UI.PRIMARY, 1);
+    badge.fillRoundedRect(-238, -78, 112, 140, 26);
+    badge.fillStyle(0xffffff, 0.25);
+    badge.fillRoundedRect(-226, -66, 88, 34, 18);
+    badge.lineStyle(4, 0xffffff, 0.4);
+    badge.strokeRoundedRect(-238, -78, 112, 140, 26);
 
-    const title = this.add.text(-95, -48, level.name, {
+    const number = addOutlinedText(this, -182, -7, level.number, {
+      fontSize: '58px',
+      stroke: '#6f3fb3',
+      strokeThickness: 6,
+      shadowY: 3
+    });
+
+    const title = this.add.text(-95, -52, level.name, {
       fontSize: '34px',
-      color: '#ffffff',
+      color: UI.DARK_TEXT,
       fontStyle: 'bold'
     }).setOrigin(0, 0.5);
 
     const stars = this.add.text(-95, 3, level.stars, {
       fontSize: '30px',
-      color: '#ffd86b',
+      color: '#ffbe24',
       fontStyle: 'bold'
     }).setOrigin(0, 0.5);
 
-    const hook = this.add.text(-95, 48, `${level.difficulty} · ${level.hook}`, {
+    const hook = this.add.text(-95, 48, level.difficulty.toUpperCase(), {
       fontSize: '22px',
       color: UI.MUTED_TEXT,
       fontStyle: 'bold'
     }).setOrigin(0, 0.5);
 
-    container.add([background, number, title, stars, hook]);
+    const arrow = addOutlinedText(this, 226, 0, '>', {
+      fontSize: '40px',
+      stroke: '#d46e10',
+      strokeThickness: 5,
+      color: '#ffffff',
+      shadowY: 2,
+      shadowColor: '#a5520d'
+    });
+    const arrowBg = this.add.graphics();
+    arrowBg.fillStyle(UI.ACCENT_DARK, 1);
+    arrowBg.fillRoundedRect(190, -36, 72, 72, 20);
+    arrowBg.fillStyle(UI.ACCENT, 1);
+    arrowBg.fillRoundedRect(190, -43, 72, 72, 20);
+    arrowBg.fillStyle(0xffffff, 0.22);
+    arrowBg.fillRoundedRect(198, -35, 56, 20, 10);
+
+    container.add([background, badge, number, title, stars, hook, arrowBg, arrow]);
     container.setSize(width, height);
     attachHitZone(this, container, width, height);
 
     container.on('pointerover', () => {
-      this.tweens.add({ targets: container, scale: 1.03, duration: 120, ease: 'Quad.easeOut' });
+      this.tweens.add({ targets: container, scale: 1.035, duration: 120, ease: 'Back.easeOut' });
     });
     container.on('pointerout', () => {
-      this.tweens.add({ targets: container, scale: 1, duration: 120, ease: 'Quad.easeOut' });
+      this.tweens.add({ targets: container, scale: 1, duration: 120, ease: 'Back.easeOut' });
     });
     container.on('pointerdown', () => {
-      this.tweens.add({ targets: container, scale: 0.97, duration: 80, ease: 'Quad.easeOut' });
+      this.tweens.add({ targets: container, scaleX: 0.97, scaleY: 0.94, duration: 80, ease: 'Quad.easeOut' });
     });
     container.on('pointerup', () => {
       console.log(`Starting level ${level.id}`);
