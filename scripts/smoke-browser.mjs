@@ -13,6 +13,9 @@ const DEFAULT_CHROME_BIN = process.platform === 'darwin'
 const CHROME_BIN = process.env.CHROME_BIN || DEFAULT_CHROME_BIN;
 const USER_DATA_DIR = `/tmp/marble-sort-chrome-${DEBUG_PORT}`;
 const DEBUG_OUTPUT = process.env.SMOKE_DEBUG === '1';
+const BROWSER_SCOPE = process.env.SMOKE_SCOPE
+  || (process.argv.includes('--quick') ? 'quick' : 'full');
+const QUICK_BROWSER_SMOKE = BROWSER_SCOPE === 'quick';
 
 const delay = (ms) => new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 
@@ -456,13 +459,30 @@ async function runConveyorBoxEdgeCases(client) {
   }
   console.log('ok - 02c scenario 5 deadlocked full conveyor locks input once');
 
-  await restartGameScene(client, 2, { blocks: 12 });
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Reveal Hit Zone',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [
+      { id: 'top', col: 2, row: 2, z: 1, color: 'pink', is_hidden: false },
+      { id: 'hidden', col: 2, row: 2, z: 0, color: 'blue', is_hidden: true }
+    ],
+    walls: [],
+    box_columns: makeColumns({
+      0: ['pink', 'pink', 'pink'],
+      1: ['blue', 'blue', 'blue']
+    }),
+    conveyor_speed: 0.1,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
   const reveal = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
     window.__revealedBlockTapCount = 0;
     s.events.on('block-tapped', () => { window.__revealedBlockTapCount += 1; });
-    const top = s.blocks.find((block) => block.data.id === 't1');
-    const hidden = s.blocks.find((block) => block.data.id === 'h1');
+    const top = s.blocks.find((block) => block.data.id === 'top');
+    const hidden = s.blocks.find((block) => block.data.id === 'hidden');
     top.shatter();
     s.boardManager.onBlockCleared(top);
     return {
@@ -479,7 +499,7 @@ async function runConveyorBoxEdgeCases(client) {
   await delay(160);
   const revealClick = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
-    const hidden = s.blocks.find((block) => block.data.id === 'h1');
+    const hidden = s.blocks.find((block) => block.data.id === 'hidden');
     return { tapCount: window.__revealedBlockTapCount, hiddenCleared: hidden.isCleared };
   })()`);
   if (revealClick.tapCount !== 1 || !revealClick.hiddenCleared) {
@@ -553,6 +573,19 @@ async function runConveyorBoxEdgeCases(client) {
   console.log('ok - 02c scenarios 7, 8, 9 magnetize, pause, and slot reserve work');
 }
 
+function assertNoBrowserErrors(client) {
+  const errors = client.events.filter((event) => {
+    if (event.method === 'Runtime.exceptionThrown') return true;
+    if (event.method === 'Log.entryAdded') return ['error', 'assert'].includes(event.params.entry.level);
+    if (event.method === 'Console.messageAdded') return event.params.message.level === 'error';
+    return false;
+  });
+  if (errors.length > 0) {
+    throw new Error(`Browser reported ${errors.length} errors:\n${JSON.stringify(errors, null, 2)}`);
+  }
+  console.log('ok - no browser console/runtime errors');
+}
+
 async function runBrowserChecks(client) {
   await client.send('Runtime.enable');
   await client.send('Page.enable');
@@ -562,6 +595,7 @@ async function runBrowserChecks(client) {
   await client.send('Console.enable');
   await client.send('Page.navigate', { url: `${BASE_URL}/?smoke=1` });
   await waitFor(client, 'window.Phaser && window.marbleSortGame && window.marbleSortGame.isBooted', 20000);
+  await waitFor(client, `window.marbleSortGame.scene.getScene('MenuScene').scene.isActive()`, 20000);
 
   const bootState = await evaluate(client, `(() => {
     const game = window.marbleSortGame;
@@ -640,6 +674,12 @@ async function runBrowserChecks(client) {
   if (hitZones) throw new Error(`Block hit zone mismatch: ${JSON.stringify(hitZones)}`);
   console.log('ok - block hit zones align with visuals');
 
+  if (QUICK_BROWSER_SMOKE) {
+    assertNoBrowserErrors(client);
+    console.log('ok - quick browser smoke skips editor and long conveyor scenarios');
+    return;
+  }
+
   await startScene(client, 'EditorScene');
   await waitFor(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('EditorScene');
@@ -680,23 +720,24 @@ async function runBrowserChecks(client) {
   }
   console.log(`ok - debug overlay dump: ${overlayDump.split('\\n').slice(0, 3).join(' | ')}`);
 
-  const errors = client.events.filter((event) => {
-    if (event.method === 'Runtime.exceptionThrown') return true;
-    if (event.method === 'Log.entryAdded') return ['error', 'assert'].includes(event.params.entry.level);
-    if (event.method === 'Console.messageAdded') return event.params.message.level === 'error';
-    return false;
-  });
-  if (errors.length > 0) {
-    throw new Error(`Browser reported ${errors.length} errors:\n${JSON.stringify(errors, null, 2)}`);
-  }
-  console.log('ok - no browser console/runtime errors');
+  assertNoBrowserErrors(client);
 }
 
 async function main() {
   mkdirSync(USER_DATA_DIR, { recursive: true });
-  const server = spawnProcess('python3', ['-m', 'http.server', String(PORT)], {
+  const server = spawnProcess('npm', [
+    'run',
+    'dev',
+    '--',
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(PORT),
+    '--strictPort'
+  ], {
     cwd: ROOT,
-    stderrFilter: (line) => !/ "GET /.test(line) && !/ "HEAD /.test(line)
+    stdoutFilter: (line) => DEBUG_OUTPUT || !/(VITE|Local:|ready in)/.test(line),
+    stderrFilter: (line) => DEBUG_OUTPUT || !/(VITE|Local:|ready in)/.test(line)
   });
   let chrome;
   let client;
