@@ -3,13 +3,14 @@ import { CONFIG, UI } from '../config/constants.js';
 import { Block } from '../entities/Block.js';
 import { EditorState } from '../sim/editorState.js';
 import { validateLevel } from '../sim/levelLoader.js';
-import type { BlockRecord } from '../sim/types.js';
+import type { BlockRecord, ColorId } from '../sim/types.js';
 import { drawSkyBackground } from '../ui/casualStyle.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
 const GRID_START = { x: 120, y: 160 } as const;
 const EDITOR_BLOCK_SIZE = 72;
-const QUEUE_OPTIONS = [10, 12, 14, 16, 20] as const;
+const CONVEYOR_SPEED_OPTIONS = [0.12, 0.16, 0.18, 0.22, 0.26] as const;
+const BOX_COLUMN_MAX_BOXES = 6;
 
 interface HoverCell {
   col: number;
@@ -68,7 +69,8 @@ export class EditorScene extends Phaser.Scene {
     this._drawHeader();
     this._drawGrid();
     this._drawPalette();
-    this._drawLayerAndTrays();
+    this._drawLayerControls();
+    this._drawBoxColumnsPanel();
     this._drawParams();
     this._drawIO();
   }
@@ -166,15 +168,13 @@ export class EditorScene extends Phaser.Scene {
         hit.setInteractive({ useHandCursor: true });
         hit.on('pointerover', () => {
           this.hoverCell = { col, row };
-          this._renderAll();
         });
         hit.on('pointerout', () => {
           if (this.hoverCell?.col === col && this.hoverCell?.row === row) {
             this.hoverCell = null;
-            this._renderAll();
           }
         });
-        hit.on('pointerdown', () => {
+        hit.on('pointerup', () => {
           this.editorState.placeBlock(col, row);
           this._persistState();
           this._renderAll();
@@ -228,8 +228,8 @@ export class EditorScene extends Phaser.Scene {
     ));
   }
 
-  private _drawLayerAndTrays(): void {
-    const y = 815;
+  private _drawLayerControls(): void {
+    const y = 805;
     this.root.add(this.add.text(58, y, 'Z-LAYER', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
     this.root.add(this._makeButton(158, y, 46, 44, '▼', UI.PANEL_DARK, () => {
       this.editorState.setActiveZ(this.editorState.activeZ - 1);
@@ -244,33 +244,117 @@ export class EditorScene extends Phaser.Scene {
     }));
 
     this.root.add(this.add.text(58, y + 42, 'Higher z = on top', { fontSize: '14px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
-    this.root.add(this.add.text(340, y - 34, 'TRAYS', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+  }
 
-    COLOR_IDS.forEach((colorId, index) => {
-      const color = getColorDefinition(colorId);
-      const enabled = this.editorState.trays.some((tray) => tray.color === colorId);
-      const x = 370 + index * 48;
-      const circle = this.add.circle(x, y + 8, 18, enabled ? color.hex : 0x000000, enabled ? 1 : 0);
-      circle.setStrokeStyle(4, enabled ? color.hex : 0x77778c, 1);
-      const hit = makeWorldHitZone(this, x, y + 8, 44, 44, () => {
-        this.editorState.toggleTray(colorId);
+  private _drawBoxColumnsPanel(): void {
+    const panelX = 330;
+    const panelY = 770;
+    const panelWidth = 340;
+    const panelHeight = 245;
+    const panel = this.add.graphics();
+    panel.fillStyle(0xf5fbff, 0.94);
+    panel.fillRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
+    panel.lineStyle(3, 0x4969a1, 0.35);
+    panel.strokeRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
+    this.root.add(panel);
+
+    this.root.add(this.add.text(panelX + 18, panelY + 20, 'BOX COLUMNS', {
+      fontSize: '17px', color: UI.DARK_TEXT, fontStyle: 'bold',
+    }).setOrigin(0, 0.5));
+
+    const validation = this.editorState.getValidationStatus();
+    const statusColor = validation.isValid ? '#287a52' : '#b24058';
+    this.root.add(this.add.text(panelX + panelWidth - 18, panelY + 20, `${validation.isValid ? '✓' : '✗'} ${validation.summary}`, {
+      fontSize: validation.summary.length > 18 ? '12px' : '14px',
+      color: statusColor,
+      fontStyle: 'bold',
+    }).setOrigin(1, 0.5));
+
+    const columns = this.editorState.toLevelData().box_columns;
+    columns.forEach((column, index) => {
+      const colX = panelX + 43 + index * 82;
+      const labelActive = this.editorState.activeColumn === index;
+      this.root.add(this.add.text(colX, panelY + 50, `COL ${column.col}`, {
+        fontSize: '13px',
+        color: labelActive ? '#7442ba' : UI.MUTED_TEXT,
+        fontStyle: 'bold',
+      }).setOrigin(0.5));
+
+      const columnBg = this.add.rectangle(colX, panelY + 135, 64, 150, labelActive ? 0xe9ddff : 0xe4f2f8, 1);
+      columnBg.setStrokeStyle(labelActive ? 3 : 2, labelActive ? UI.PRIMARY_DARK : UI.BLUE_STROKE, labelActive ? 0.8 : 0.22);
+      this.root.add(columnBg);
+
+      column.boxes.slice(0, BOX_COLUMN_MAX_BOXES).forEach((colorId, boxIndex) => {
+        this._drawEditableBox(colX, panelY + 72 + boxIndex * 20, index, boxIndex, colorId);
+      });
+
+      const canAdd = column.boxes.length < BOX_COLUMN_MAX_BOXES;
+      const addY = panelY + 72 + Math.min(column.boxes.length, BOX_COLUMN_MAX_BOXES) * 20;
+      this.root.add(this._makeButton(colX, addY, 48, 18, '+', canAdd ? UI.PANEL_DARK : 0x8794aa, () => {
+        if (!canAdd) return;
+        this.editorState.setActiveColumn(index);
+        this.editorState.addBoxToColumn(index);
+        this._persistState();
+        this._renderAll();
+      }));
+    });
+
+    this.root.add(this._makeButton(panelX + 73, panelY + panelHeight - 25, 108, 34, 'AUTO FILL', UI.PANEL_DARK, () => {
+      this.editorState.syncBoxColumnsToBlocks();
+      this._persistState();
+      this._renderAll();
+    }));
+    this.root.add(this._makeButton(panelX + 198, panelY + panelHeight - 25, 118, 34, 'CLEAR COL', 0x923653, () => {
+      this.editorState.clearColumn(this.editorState.activeColumn);
+      this._persistState();
+      this._renderAll();
+    }));
+  }
+
+  private _drawEditableBox(x: number, y: number, columnIndex: number, boxIndex: number, colorId: ColorId): void {
+    const color = getColorDefinition(colorId);
+    const box = this.add.rectangle(x, y, 54, 16, color.hex, 1);
+    box.setStrokeStyle(2, 0xffffff, 0.6);
+    const label = this.add.text(x, y, colorId.charAt(0).toUpperCase(), {
+      fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const hit = makeWorldHitZone(this, x, y, 62, 22, null);
+    let longPressTriggered = false;
+    let timer: Phaser.Time.TimerEvent | null = null;
+    hit.on('pointerdown', () => {
+      this.editorState.setActiveColumn(columnIndex);
+      longPressTriggered = false;
+      timer = this.time.delayedCall(500, () => {
+        longPressTriggered = true;
+        this.editorState.removeBoxFromColumn(columnIndex, boxIndex);
         this._persistState();
         this._renderAll();
       });
-      const label = this.add.text(x, y + 42, color.label, { fontSize: '14px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
-      this.root.add([circle, label, hit]);
     });
+    hit.on('pointerup', () => {
+      timer?.remove(false);
+      timer = null;
+      if (longPressTriggered) return;
+      this.editorState.setBoxColor(columnIndex, boxIndex);
+      this._persistState();
+      this._renderAll();
+    });
+    hit.on('pointerout', () => {
+      timer?.remove(false);
+      timer = null;
+    });
+    this.root.add([box, label, hit]);
   }
 
   private _drawParams(): void {
-    const y = 920;
-    this.root.add(this.add.text(58, y, 'QUEUE', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    const y = 1050;
+    this.root.add(this.add.text(58, y, 'CONVEYOR', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
 
-    QUEUE_OPTIONS.forEach((value, index) => {
+    CONVEYOR_SPEED_OPTIONS.forEach((value, index) => {
       const x = 148 + index * 58;
-      const active = this.editorState.queueCapacity === value;
-      this.root.add(this._makeButton(x, y, 50, 44, String(value), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
-        this.editorState.setQueueCapacity(value);
+      const active = Math.abs(this.editorState.conveyorSpeed - value) < 0.001;
+      this.root.add(this._makeButton(x, y, 50, 44, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
+        this.editorState.setConveyorSpeed(value);
         this._persistState();
         this._renderAll();
       }));
@@ -287,14 +371,14 @@ export class EditorScene extends Phaser.Scene {
     this.root.add([box, boxHit]);
     this.root.add(this.add.text(checkX + 26, y, 'GRAV FLIP', { fontSize: '18px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
 
-    this.root.add(this.add.text(58, y + 72, 'MAGNET', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
-    this.root.add(this._makeButton(160, y + 72, 46, 42, '-', UI.PANEL_DARK, () => {
+    this.root.add(this.add.text(58, y + 58, 'MAGNET', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this._makeButton(160, y + 58, 46, 42, '-', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount - 1);
       this._persistState();
       this._renderAll();
     }));
-    this.root.add(this.add.text(215, y + 72, String(this.editorState.magnetCount), { fontSize: '24px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0.5));
-    this.root.add(this._makeButton(270, y + 72, 46, 42, '+', UI.PANEL_DARK, () => {
+    this.root.add(this.add.text(215, y + 58, String(this.editorState.magnetCount), { fontSize: '24px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0.5));
+    this.root.add(this._makeButton(270, y + 58, 46, 42, '+', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount + 1);
       this._persistState();
       this._renderAll();
@@ -302,11 +386,12 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _drawIO(): void {
-    const y = 1080;
-    this.root.add(this._makeButton(155, y, 190, 62, 'EXPORT JSON', UI.PANEL_DARK, () => this._showExportModal()));
-    this.root.add(this._makeButton(360, y, 190, 62, 'IMPORT JSON', UI.PANEL_DARK, () => this._showImportModal()));
-    this.root.add(this._makeButton(565, y, 190, 62, 'CLEAR ALL', 0x923653, () => this._showConfirmClear()));
-    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 1165, 'Exported JSON can be loaded directly by GameScene.', {
+    const y = 1190;
+    this.root.add(this._makeButton(92, y, 130, 50, 'EXPORT', UI.PANEL_DARK, () => this._showExportModal()));
+    this.root.add(this._makeButton(242, y, 130, 50, 'AI BRIEF', UI.PANEL_DARK, () => this._showAgentBriefModal()));
+    this.root.add(this._makeButton(392, y, 130, 50, 'IMPORT', UI.PANEL_DARK, () => this._showImportModal()));
+    this.root.add(this._makeButton(562, y, 150, 50, 'CLEAR ALL', 0x923653, () => this._showConfirmClear()));
+    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 1242, 'Export JSON is playable; AI Brief is readable design context.', {
       fontSize: '17px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
   }
@@ -328,7 +413,7 @@ export class EditorScene extends Phaser.Scene {
     container.add([bg, text]);
     container.setSize(size, size);
     attachHitZone(this, container, size, size);
-    container.on('pointerdown', onClick);
+    container.on('pointerup', onClick);
     return container;
   }
 
@@ -355,6 +440,8 @@ export class EditorScene extends Phaser.Scene {
     container.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, duration: 90 }));
     container.on('pointerdown', () => {
       this.tweens.add({ targets: container, scale: 0.96, duration: 60 });
+    });
+    container.on('pointerup', () => {
       if (onClick) onClick();
     });
     return container;
@@ -430,9 +517,29 @@ export class EditorScene extends Phaser.Scene {
     modal.add(this._makeButton(205, 336, 150, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
   }
 
+  private _showAgentBriefModal(): void {
+    const brief = this.editorState.getAgentBrief();
+    const modal = this._makeModal('AI Level Brief');
+    modal.add(this.add.text(-260, -260, brief, {
+      fontSize: '18px', color: UI.DARK_TEXT, fontStyle: 'bold', wordWrap: { width: 520 },
+    }).setOrigin(0, 0));
+    modal.add(this.add.text(-260, 120, this.editorState.exportJSON(), {
+      fontSize: '12px', color: '#4d668f', fontStyle: 'bold', wordWrap: { width: 520 },
+    }).setOrigin(0, 0));
+    modal.add(this._makeButton(-115, 336, 190, 58, 'COPY', UI.PRIMARY, async () => {
+      try {
+        await navigator.clipboard.writeText(`${brief}\n\n${this.editorState.exportJSON()}`);
+        this._showToast('Copied AI brief');
+      } catch {
+        this._showToast('Clipboard unavailable');
+      }
+    }));
+    modal.add(this._makeButton(115, 336, 190, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
+  }
+
   private _showConfirmClear(): void {
     const modal = this._makeModal('Clear All?');
-    modal.add(this.add.text(0, -40, 'Remove all blocks and trays from the editor?', {
+    modal.add(this.add.text(0, -40, 'Remove all blocks from the editor?', {
       fontSize: '24px', color: UI.TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
     }).setOrigin(0.5));
     modal.add(this._makeButton(-120, 125, 190, 62, 'CLEAR', 0x923653, () => {

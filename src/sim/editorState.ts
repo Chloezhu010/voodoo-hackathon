@@ -1,6 +1,21 @@
 import { COLOR_IDS } from '../config/colors.js';
 
-import type { BlockRecord, BoxColumn, ColorId, IdGen, LevelData, TrayConfig } from './types.js';
+import type { BlockRecord, BoxColumn, ColorId, IdGen, LevelData } from './types.js';
+
+export interface EditorValidationMismatch {
+  color: ColorId;
+  marbles: number;
+  slots: number;
+}
+
+export interface EditorValidationStatus {
+  totalMarbles: number;
+  totalBoxCapacity: number;
+  totalsMatch: boolean;
+  colorMismatch: EditorValidationMismatch[];
+  isValid: boolean;
+  summary: string;
+}
 
 interface DefaultIdGen {
   (): string;
@@ -28,9 +43,8 @@ export class EditorState {
   gridCols = 5;
   gridRows = 5;
   blocks: BlockRecord[] = [];
-  trays: TrayConfig[] = [];
   boxColumns: BoxColumn[];
-  queueCapacity = 12;
+  conveyorSpeed = 0.18;
   gravityFlipEnabled = false;
   magnetCount = 0;
 
@@ -38,6 +52,7 @@ export class EditorState {
   activeZ = 0;
   activeIsHidden = false;
   eraseMode = false;
+  activeColumn = 0;
 
   constructor({ idGen = defaultIdGen }: EditorStateOptions = {}) {
     this._idGen = idGen;
@@ -57,6 +72,7 @@ export class EditorState {
     if (existing) {
       existing.color = this.activeColor;
       existing.is_hidden = this.activeIsHidden;
+      this.syncBoxColumnsToBlocks();
       return;
     }
 
@@ -68,6 +84,7 @@ export class EditorState {
       color: this.activeColor,
       is_hidden: this.activeIsHidden,
     });
+    this.syncBoxColumnsToBlocks();
   }
 
   removeBlock(col: number, row: number): void {
@@ -77,20 +94,11 @@ export class EditorState {
     if (stack.length === 0) return;
     const top = stack[0]!;
     this.blocks = this.blocks.filter((block) => block.id !== top.id);
+    this.syncBoxColumnsToBlocks();
   }
 
-  toggleTray(color: ColorId): void {
-    const index = this.trays.findIndex((tray) => tray.color === color);
-    if (index >= 0) {
-      this.trays.splice(index, 1);
-      return;
-    }
-    this.trays.push({ color, capacity: 6 });
-    this.trays.sort((a, b) => COLOR_IDS.indexOf(a.color) - COLOR_IDS.indexOf(b.color));
-  }
-
-  setQueueCapacity(value: number): void {
-    this.queueCapacity = value;
+  setConveyorSpeed(value: number): void {
+    this.conveyorSpeed = Math.max(0.08, Math.min(0.4, value));
   }
 
   setActiveZ(value: number): void {
@@ -99,6 +107,107 @@ export class EditorState {
 
   setMagnetCount(value: number): void {
     this.magnetCount = Math.max(0, Math.min(3, value));
+  }
+
+  setActiveColumn(value: number): void {
+    this.activeColumn = Math.max(0, Math.min(3, value));
+  }
+
+  addBoxToColumn(columnIndex: number, color: ColorId = this.activeColor): void {
+    const column = this.boxColumns[columnIndex];
+    if (!column || column.boxes.length >= 6) return;
+    column.boxes.push(color);
+  }
+
+  removeBoxFromColumn(columnIndex: number, boxIndex: number): void {
+    const column = this.boxColumns[columnIndex];
+    if (!column || boxIndex < 0 || boxIndex >= column.boxes.length) return;
+    column.boxes.splice(boxIndex, 1);
+  }
+
+  setBoxColor(columnIndex: number, boxIndex: number, color: ColorId = this.activeColor): void {
+    const column = this.boxColumns[columnIndex];
+    if (!column || boxIndex < 0 || boxIndex >= column.boxes.length) return;
+    column.boxes[boxIndex] = color;
+  }
+
+  clearColumn(columnIndex: number): void {
+    const column = this.boxColumns[columnIndex];
+    if (!column) return;
+    column.boxes = [];
+  }
+
+  cycleBoxColor(columnIndex: number, boxIndex: number): void {
+    const column = this.boxColumns[columnIndex];
+    if (!column || !column.boxes[boxIndex]) return;
+    const currentIndex = COLOR_IDS.indexOf(column.boxes[boxIndex]);
+    column.boxes[boxIndex] = COLOR_IDS[(currentIndex + 1) % COLOR_IDS.length] as ColorId;
+  }
+
+  syncBoxColumnsToBlocks(): void {
+    this.boxColumns = this._deriveBoxColumns(this.blocks);
+  }
+
+  getValidationStatus(): EditorValidationStatus {
+    const blockColors = new Map<ColorId, number>();
+    this.blocks.forEach((block) => {
+      blockColors.set(block.color, (blockColors.get(block.color) ?? 0) + 1);
+    });
+
+    const boxColors = new Map<ColorId, number>();
+    this.boxColumns.forEach((column) => {
+      column.boxes.forEach((color) => {
+        boxColors.set(color, (boxColors.get(color) ?? 0) + 1);
+      });
+    });
+
+    const totalMarbles = this.blocks.length * 9;
+    const totalBoxCapacity = this.boxColumns.reduce((sum, column) => sum + column.boxes.length, 0) * 3;
+    const colorMismatch: EditorValidationMismatch[] = [];
+    const allColors = new Set<ColorId>([...blockColors.keys(), ...boxColors.keys()]);
+
+    allColors.forEach((color) => {
+      const marbles = (blockColors.get(color) ?? 0) * 9;
+      const slots = (boxColors.get(color) ?? 0) * 3;
+      if (marbles !== slots) colorMismatch.push({ color, marbles, slots });
+    });
+
+    const totalsMatch = totalMarbles === totalBoxCapacity;
+    const isValid = this.blocks.length > 0 && totalsMatch && colorMismatch.length === 0;
+    const summary = isValid
+      ? `${totalMarbles}/${totalBoxCapacity} valid`
+      : this._validationProblemSummary(totalMarbles, totalBoxCapacity, colorMismatch);
+
+    return { totalMarbles, totalBoxCapacity, totalsMatch, colorMismatch, isValid, summary };
+  }
+
+  getAgentBrief(): string {
+    const validation = this.getValidationStatus();
+    const colorCounts = (COLOR_IDS as ColorId[])
+      .map((color) => `${color}:${this.blocks.filter((block) => block.color === color).length}`)
+      .filter((entry) => !entry.endsWith(':0'))
+      .join(', ') || 'none';
+    const hiddenCount = this.blocks.filter((block) => block.is_hidden).length;
+    const layeredCells = new Set(
+      this.blocks.map((block) => `${block.col}:${block.row}`),
+    ).size;
+    const maxStack = Math.max(
+      0,
+      ...Array.from(new Set(this.blocks.map((block) => `${block.col}:${block.row}`))).map((key) => (
+        this.blocks.filter((block) => `${block.col}:${block.row}` === key).length
+      )),
+    );
+    const columns = this.boxColumns
+      .map((column) => `col${column.col}[top->bottom:${column.boxes.join(',') || 'empty'}]`)
+      .join('; ');
+
+    return [
+      `Board ${this.gridCols}x${this.gridRows}, ${this.blocks.length} blocks across ${layeredCells} occupied cells.`,
+      `Block colors: ${colorCounts}. Hidden blocks: ${hiddenCount}. Max stack height: ${maxStack}.`,
+      `Box columns: ${columns}.`,
+      `Conveyor speed: ${this.conveyorSpeed}. Gravity flip: ${this.gravityFlipEnabled ? 'on' : 'off'}. Magnet count: ${this.magnetCount}.`,
+      `Validation: ${validation.summary}.`,
+    ].join(' ');
   }
 
   exportJSON(): string {
@@ -115,8 +224,13 @@ export class EditorState {
       difficulty: 0,
       board_size: { cols: this.gridCols, rows: this.gridRows },
       blocks: sortedBlocks,
-      box_columns: this._deriveBoxColumns(sortedBlocks),
-      conveyor_speed: 0.18,
+      box_columns: this.boxColumns.map((column) => ({ col: column.col, boxes: [...column.boxes] })),
+      editor_metadata: {
+        schema_version: 1,
+        design_summary: this.getAgentBrief(),
+        validation_summary: this.getValidationStatus().summary,
+      },
+      conveyor_speed: this.conveyorSpeed,
       gravity_flip_enabled: this.gravityFlipEnabled,
       magnet_count: this.magnetCount,
     };
@@ -141,17 +255,14 @@ export class EditorState {
     this.boxColumns = Array.isArray(data.box_columns)
       ? data.box_columns.map((column) => ({ col: column.col, boxes: [...column.boxes] }))
       : this._deriveBoxColumns(this.blocks);
-    this.trays = Array.isArray(data.trays)
-      ? data.trays.map((tray) => ({ color: tray.color, capacity: tray.capacity || 6 }))
-      : this._legacyTraysFromBoxColumns();
-    this.queueCapacity = data.queue_capacity || 12;
+    this.conveyorSpeed = data.conveyor_speed || 0.18;
     this.gravityFlipEnabled = Boolean(data.gravity_flip_enabled);
     this.magnetCount = data.magnet_count || 0;
+    this.activeColumn = 0;
   }
 
   clear(): void {
     this.blocks = [];
-    this.trays = [];
     this.boxColumns = this._emptyBoxColumns();
   }
 
@@ -172,8 +283,15 @@ export class EditorState {
     return columns;
   }
 
-  private _legacyTraysFromBoxColumns(): TrayConfig[] {
-    const seen = new Set<ColorId>(this.boxColumns.flatMap((column) => column.boxes));
-    return [...seen].map((color) => ({ color, capacity: 6 }));
+  private _validationProblemSummary(
+    totalMarbles: number,
+    totalBoxCapacity: number,
+    colorMismatch: readonly EditorValidationMismatch[],
+  ): string {
+    if (totalMarbles !== totalBoxCapacity) return `${totalMarbles}/${totalBoxCapacity} mismatch`;
+    const firstMismatch = colorMismatch[0];
+    if (firstMismatch) return `${firstMismatch.color}: ${firstMismatch.marbles}M vs ${firstMismatch.slots}S`;
+    if (this.blocks.length === 0) return 'empty level';
+    return 'invalid';
   }
 }

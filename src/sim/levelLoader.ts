@@ -31,11 +31,42 @@ function assertConveyorSpeed(levelData: LevelData): void {
   }
 }
 
-function tallyBlocks(blocks: LevelData['blocks']): Map<ColorId, number> {
+function assertBoardSize(levelData: LevelData): void {
+  const { cols, rows } = levelData.board_size;
+  if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 0 || rows <= 0) {
+    throw new Error('Level board_size cols/rows must be positive integers.');
+  }
+}
+
+function tallyBlocks(levelData: LevelData): Map<ColorId, number> {
   const counts = new Map<ColorId, number>();
-  blocks.forEach((block, index) => {
+  const blockIds = new Set<string>();
+  const occupiedLayers = new Set<string>();
+
+  levelData.blocks.forEach((block, index) => {
     if (!block.id) throw new Error(`Block ${index} missing id.`);
+    if (blockIds.has(block.id)) throw new Error(`Duplicate block id ${block.id}.`);
+    blockIds.add(block.id);
+
+    if (!Number.isInteger(block.col) || !Number.isInteger(block.row) || !Number.isInteger(block.z)) {
+      throw new Error(`Block ${block.id} col/row/z must be integers.`);
+    }
+    if (
+      block.col < 0
+      || block.col >= levelData.board_size.cols
+      || block.row < 0
+      || block.row >= levelData.board_size.rows
+    ) {
+      throw new Error(`Block ${block.id} is outside board.`);
+    }
+    const layerKey = `${block.col}:${block.row}:${block.z}`;
+    if (occupiedLayers.has(layerKey)) throw new Error(`Duplicate block layer ${layerKey}.`);
+    occupiedLayers.add(layerKey);
+
     if (!COLOR_IDS.includes(block.color)) throw new Error(`Unknown block color ${block.color}.`);
+    if (block.is_hidden !== undefined && typeof block.is_hidden !== 'boolean') {
+      throw new Error(`Block ${block.id} is_hidden must be boolean.`);
+    }
     counts.set(block.color, (counts.get(block.color) ?? 0) + 1);
   });
   return counts;
@@ -79,10 +110,11 @@ export function validateLevel(levelData: LevelData | null | undefined): LevelDat
   if (!levelData) throw new Error('Level data is missing.');
   if (!levelData.board_size) throw new Error('Level board_size is missing.');
   if (!Array.isArray(levelData.blocks)) throw new Error('Level blocks must be an array.');
+  assertBoardSize(levelData);
   assertBoxColumns(levelData);
   assertConveyorSpeed(levelData);
 
-  const blockColors = tallyBlocks(levelData.blocks);
+  const blockColors = tallyBlocks(levelData);
   const { counts: boxColors, total: boxCount } = tallyBoxColumns(levelData.box_columns);
 
   const totalMarbles = levelData.blocks.length * CONFIG.MARBLES_PER_BLOCK;

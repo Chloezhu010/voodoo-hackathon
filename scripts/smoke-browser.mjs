@@ -456,6 +456,69 @@ async function runConveyorBoxEdgeCases(client) {
   }
   console.log('ok - 02c scenario 5 deadlocked full conveyor locks input once');
 
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Concurrent Entry While Moving',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [
+      { id: 'pink', col: 1, row: 2, z: 0, color: 'pink', is_hidden: false },
+      { id: 'blue', col: 3, row: 2, z: 0, color: 'blue', is_hidden: false }
+    ],
+    box_columns: makeColumns({ 0: ['blue', 'blue', 'blue', 'pink', 'pink', 'pink'] }),
+    conveyor_speed: 0.18,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
+  await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    s._onBlockTapped(s.blocks.find((block) => block.data.id === 'pink'));
+    return true;
+  })()`);
+  await waitFor(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    return s.conveyor.marbles.some((marble) => marble.color === 'pink' && marble.state === 'on-conveyor');
+  })()`, 6000);
+  const beforeSecondTap = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    return {
+      conveyorCount: s.conveyor.count(),
+      pinkOnConveyor: s.conveyor.marbles.filter((marble) => marble.color === 'pink').length,
+      overflowFired: s.conveyor._overflowFired
+    };
+  })()`);
+  await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    s._onBlockTapped(s.blocks.find((block) => block.data.id === 'blue'));
+    return true;
+  })()`);
+  await waitFor(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    return s.marbles.some((marble) => marble.color === 'blue' && marble.state !== 'destroyed');
+  })()`, 4000);
+  const concurrentEntry = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    return {
+      beforeCount: ${JSON.stringify(beforeSecondTap)}.conveyorCount,
+      beforePink: ${JSON.stringify(beforeSecondTap)}.pinkOnConveyor,
+      count: s.conveyor.count(),
+      overflowFired: s.conveyor._overflowFired,
+      blueCleared: s.blocks.find((block) => block.data.id === 'blue').isCleared,
+      activeBlue: s.marbles.filter((marble) => marble.color === 'blue' && marble.state !== 'destroyed').length
+    };
+  })()`);
+  if (
+    beforeSecondTap.overflowFired
+    || beforeSecondTap.pinkOnConveyor === 0
+    || concurrentEntry.overflowFired
+    || !concurrentEntry.blueCleared
+    || concurrentEntry.activeBlue === 0
+    || concurrentEntry.count > 24
+  ) {
+    throw new Error(`Scenario 6 concurrent entry failed: ${JSON.stringify(concurrentEntry)}`);
+  }
+  console.log('ok - 02c scenario 6 new block feeds while earlier marbles are moving');
+
   await restartGameScene(client, 2, { blocks: 12 });
   const reveal = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
@@ -551,6 +614,53 @@ async function runConveyorBoxEdgeCases(client) {
     throw new Error(`Scenarios 7/8/9 direct mechanics failed: ${JSON.stringify(direct)}`);
   }
   console.log('ok - 02c scenarios 7, 8, 9 magnetize, pause, and slot reserve work');
+
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Immediate Top Advance',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [
+      { id: 'pink', col: 1, row: 2, z: 0, color: 'pink', is_hidden: false },
+      { id: 'blue', col: 3, row: 2, z: 0, color: 'blue', is_hidden: false }
+    ],
+    box_columns: makeColumns({ 0: ['pink', 'pink', 'pink', 'blue', 'blue', 'blue'] }),
+    conveyor_speed: 0.18,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
+  const immediateAdvance = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    const column = s.boxColumns[0];
+    const oldTop = column.boxes[0];
+    const pinkSlots = [
+      column.reserveSlotForColor('pink'),
+      column.reserveSlotForColor('pink'),
+      column.reserveSlotForColor('pink')
+    ];
+    const afterPink = column.getColorSequence();
+    const blueSlot = column.reserveSlotForColor('blue');
+    const rejectedPink = column.reserveSlotForColor('pink');
+    return {
+      pinkSlots: pinkSlots.map((slot) => slot?.slotIndex),
+      oldTopVisualFilled: oldTop.visual_filled,
+      afterPink,
+      blueSlot: blueSlot?.slotIndex,
+      rejectedPink: Boolean(rejectedPink),
+      newTopCount: column.boxes[0]?.current_count || 0
+    };
+  })()`);
+  if (
+    immediateAdvance.pinkSlots.join(',') !== '0,1,2'
+    || immediateAdvance.oldTopVisualFilled !== 0
+    || immediateAdvance.afterPink[0] !== 'blue'
+    || immediateAdvance.blueSlot !== 0
+    || immediateAdvance.rejectedPink
+    || immediateAdvance.newTopCount !== 1
+  ) {
+    throw new Error(`Scenario 10 immediate top advance failed: ${JSON.stringify(immediateAdvance)}`);
+  }
+  console.log('ok - 02c scenario 10 full top box advances before visual completion');
 }
 
 async function runBrowserChecks(client) {
