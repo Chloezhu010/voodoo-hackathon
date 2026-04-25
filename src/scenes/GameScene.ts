@@ -6,7 +6,7 @@ import { Funnel } from '../entities/Funnel.js';
 import { Marble } from '../entities/Marble.js';
 import { OutputPort } from '../entities/OutputPort.js';
 import { levelCacheKey, levelPathFor, validateLevel } from '../sim/levelLoader.js';
-import type { BoxColumn as BoxColumnConfig, LevelData } from '../sim/types.js';
+import type { BoxColumn as BoxColumnConfig, LevelData, WallCell } from '../sim/types.js';
 import { BoardManager } from '../systems/BoardManager.js';
 import {
   addBubbleButton,
@@ -98,7 +98,11 @@ export class GameScene extends Phaser.Scene {
     this.blocks = this.levelData.blocks.map((blockData) => (
       new Block(this, blockData, this.levelData.board_size)
     ));
-    this.boardManager = new BoardManager(this.blocks);
+    this.boardManager = new BoardManager(
+      this.blocks,
+      this.levelData.board_size,
+      this.levelData.walls ?? [],
+    );
 
     this.events.on('block-tapped', this._onBlockTapped, this);
     this.events.on('conveyor-overflow', this._onConveyorOverflow, this);
@@ -133,58 +137,280 @@ export class GameScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.setDepth(0);
 
-    drawBubblePanel(g, 28, 122, 664, 548, 48, {
-      fill: 0xa8c8d7,
-      alpha: 0.9,
-      stroke: UI.BLUE_STROKE,
-      strokeWidth: 8,
-      shadowOffset: 12,
-      shadowAlpha: 0.32,
-      highlightAlpha: 0.22,
-    });
+    this._drawPlayfieldShell(g);
+    this._drawConveyorDock(g);
+    this._drawWallRegions();
+  }
 
-    g.fillStyle(0xe9f2ff, 1);
-    g.beginPath();
-    g.moveTo(28, 602);
-    g.lineTo(292, 602);
-    g.lineTo(332, 650);
-    g.lineTo(388, 650);
-    g.lineTo(428, 602);
-    g.lineTo(692, 602);
-    g.lineTo(692, 644);
-    g.lineTo(646, 704);
-    g.lineTo(432, 744);
-    g.lineTo(388, 706);
-    g.lineTo(332, 706);
-    g.lineTo(288, 744);
-    g.lineTo(74, 704);
-    g.lineTo(28, 644);
-    g.closePath();
-    g.fillPath();
-    g.lineStyle(7, UI.BLUE_STROKE, 0.8);
-    g.strokePath();
+  private _drawPlayfieldShell(g: Phaser.GameObjects.Graphics): void {
+    const shell = [
+      { x: 92, y: 126 },
+      { x: 626, y: 130 },
+      { x: 674, y: 168 },
+      { x: 686, y: 632 },
+      { x: 646, y: 684 },
+      { x: 468, y: 720 },
+      { x: 426, y: 760 },
+      { x: 426, y: 832 },
+      { x: 294, y: 832 },
+      { x: 294, y: 760 },
+      { x: 252, y: 720 },
+      { x: 76, y: 684 },
+      { x: 34, y: 632 },
+      { x: 48, y: 166 },
+    ] as const;
 
-    const conveyorArea = CONFIG.CONVEYOR.AREA;
-    drawBubblePanel(
-      g,
-      conveyorArea.x,
-      conveyorArea.y - 44,
-      conveyorArea.width,
-      conveyorArea.height + 72,
-      44,
-      {
-        fill: 0xf4f8ff,
-        stroke: UI.BLUE_STROKE,
-        strokeWidth: 6,
-        shadowOffset: 10,
-        shadowAlpha: 0.22,
-        highlightAlpha: 0.2,
-      },
-    );
+    const highlight = [
+      { x: 92, y: 166 },
+      { x: 620, y: 166 },
+      { x: 644, y: 190 },
+      { x: 656, y: 612 },
+      { x: 612, y: 646 },
+      { x: 450, y: 676 },
+      { x: 406, y: 722 },
+      { x: 406, y: 782 },
+      { x: 314, y: 782 },
+      { x: 314, y: 722 },
+      { x: 270, y: 676 },
+      { x: 108, y: 646 },
+      { x: 66, y: 616 },
+      { x: 74, y: 190 },
+    ] as const;
+
+    this._fillPolygon(g, shell, 0x314d83, 0.26, 14);
+    this._fillPolygon(g, shell, 0xa7c4d0, 1);
+    this._fillPolygon(g, highlight, 0xc8dbe2, 0.34);
+    this._strokePolygon(g, shell, 22, 0x38598e, 0.52, 10);
+    this._strokePolygon(g, shell, 14, 0x466aa0, 0.96);
+    this._strokePolygon(g, shell, 4, 0xd7ecf4, 0.26, -2);
+
+    const mouth = [
+      { x: 266, y: 694 },
+      { x: 454, y: 694 },
+      { x: 410, y: 762 },
+      { x: 410, y: 838 },
+      { x: 310, y: 838 },
+      { x: 310, y: 762 },
+    ] as const;
+    this._fillPolygon(g, mouth, 0x38598e, 0.18, 8);
+    this._fillPolygon(g, mouth, 0xf4f8ff, 0.96);
+    this._strokePolygon(g, mouth, 7, 0x466aa0, 0.52);
+    this._strokePolygon(g, [
+      { x: 286, y: 708 },
+      { x: 434, y: 708 },
+      { x: 398, y: 762 },
+      { x: 398, y: 812 },
+      { x: 322, y: 812 },
+      { x: 322, y: 762 },
+    ], 3, 0xffffff, 0.28);
+  }
+
+  private _drawConveyorDock(g: Phaser.GameObjects.Graphics): void {
+    const dock = [
+      { x: 96, y: 806 },
+      { x: 292, y: 806 },
+      { x: 292, y: 760 },
+      { x: 322, y: 728 },
+      { x: 398, y: 728 },
+      { x: 428, y: 760 },
+      { x: 428, y: 806 },
+      { x: 624, y: 806 },
+      { x: 666, y: 840 },
+      { x: 682, y: 890 },
+      { x: 682, y: 1088 },
+      { x: 640, y: 1128 },
+      { x: 80, y: 1128 },
+      { x: 38, y: 1088 },
+      { x: 38, y: 890 },
+      { x: 54, y: 840 },
+    ] as const;
+
+    this._fillPolygon(g, dock, 0x324b82, 0.24, 14);
+    this._fillPolygon(g, dock, 0xf4f8ff, 1);
+    this._fillPolygon(g, [
+      { x: 118, y: 826 },
+      { x: 602, y: 826 },
+      { x: 632, y: 854 },
+      { x: 642, y: 890 },
+      { x: 78, y: 890 },
+      { x: 88, y: 854 },
+    ], 0xffffff, 0.2);
+    this._strokePolygon(g, dock, 18, 0x38598e, 0.44, 10);
+    this._strokePolygon(g, dock, 10, UI.BLUE_STROKE, 0.9);
+    this._strokePolygon(g, dock, 3, 0xffffff, 0.32, -2);
 
     const boxArea = CONFIG.BOX_COLUMNS.AREA;
     g.fillStyle(0x4969a1, 0.16);
     g.fillRoundedRect(boxArea.x, boxArea.y - 22, boxArea.width, boxArea.height + 48, 22);
+  }
+
+  private _drawWallRegions(): void {
+    const walls = this.levelData.walls ?? [];
+    if (walls.length === 0) return;
+
+    const g = this.add.graphics();
+    g.setDepth(6);
+    this._wallComponents(walls).forEach((component, index) => {
+      this._drawWallComponent(g, component, index);
+    });
+  }
+
+  private _drawWallComponent(
+    g: Phaser.GameObjects.Graphics,
+    component: readonly WallCell[],
+    componentIndex: number,
+  ): void {
+    const edges = this._wallBoundaryEdges(component);
+    const size = CONFIG.BLOCK_SIZE;
+
+    g.fillStyle(0x3b5c77, 1);
+    component.forEach((wall) => {
+      const pos = Block.getBoardPosition(wall.col, wall.row, this.levelData.board_size);
+      g.fillRect(pos.x - size / 2, pos.y - size / 2, size, size);
+    });
+
+    this._strokeWallEdges(g, edges, componentIndex, 16, 0x243d5d, 0.24, 9);
+    this._strokeWallEdges(g, edges, componentIndex, 8, 0x254661, 0.94, 0);
+    this._strokeWallEdges(g, edges, componentIndex, 3, 0xc7dbe5, 0.22, -2);
+  }
+
+  private _wallComponents(walls: readonly WallCell[]): WallCell[][] {
+    const remaining = new Map(walls.map((wall) => [this._cellKey(wall), wall]));
+    const components: WallCell[][] = [];
+
+    for (const wall of walls) {
+      const firstKey = this._cellKey(wall);
+      if (!remaining.has(firstKey)) continue;
+      const component: WallCell[] = [];
+      const queue = [wall];
+      remaining.delete(firstKey);
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        component.push(current);
+        [
+          { col: current.col - 1, row: current.row },
+          { col: current.col + 1, row: current.row },
+          { col: current.col, row: current.row - 1 },
+          { col: current.col, row: current.row + 1 },
+        ].forEach((next) => {
+          const key = this._cellKey(next);
+          const queued = remaining.get(key);
+          if (!queued) return;
+          remaining.delete(key);
+          queue.push(queued);
+        });
+      }
+
+      components.push(component);
+    }
+
+    return components;
+  }
+
+  private _wallBoundaryEdges(component: readonly WallCell[]): { a: WallCell; b: WallCell }[] {
+    const edgeMap = new Map<string, { a: WallCell; b: WallCell; count: number }>();
+    component.forEach((wall) => {
+      [
+        { a: { col: wall.col, row: wall.row }, b: { col: wall.col + 1, row: wall.row } },
+        { a: { col: wall.col + 1, row: wall.row }, b: { col: wall.col + 1, row: wall.row + 1 } },
+        { a: { col: wall.col + 1, row: wall.row + 1 }, b: { col: wall.col, row: wall.row + 1 } },
+        { a: { col: wall.col, row: wall.row + 1 }, b: { col: wall.col, row: wall.row } },
+      ].forEach((edge) => {
+        const key = this._edgeKey(edge.a, edge.b);
+        const existing = edgeMap.get(key);
+        if (existing) {
+          existing.count += 1;
+          return;
+        }
+        edgeMap.set(key, { ...edge, count: 1 });
+      });
+    });
+
+    return [...edgeMap.values()]
+      .filter((edge) => edge.count === 1)
+      .map(({ a, b }) => ({ a, b }));
+  }
+
+  private _strokeWallEdges(
+    g: Phaser.GameObjects.Graphics,
+    edges: readonly { a: WallCell; b: WallCell }[],
+    componentIndex: number,
+    width: number,
+    color: number,
+    alpha: number,
+    offsetY: number,
+  ): void {
+    g.lineStyle(width, color, alpha);
+    edges.forEach((edge) => {
+      const a = this._wallVertexPosition(edge.a, componentIndex);
+      const b = this._wallVertexPosition(edge.b, componentIndex);
+      g.beginPath();
+      g.moveTo(a.x, a.y + offsetY);
+      g.lineTo(b.x, b.y + offsetY);
+      g.strokePath();
+    });
+  }
+
+  private _wallVertexPosition(vertex: WallCell, componentIndex: number): { x: number; y: number } {
+    const size = CONFIG.BLOCK_SIZE;
+    const gridWidth = this.levelData.board_size.cols * size;
+    const gridHeight = this.levelData.board_size.rows * size;
+    const startX = CONFIG.BOARD_AREA.x + (CONFIG.BOARD_AREA.width - gridWidth) / 2;
+    const startY = CONFIG.BOARD_AREA.y + (CONFIG.BOARD_AREA.height - gridHeight) / 2;
+    const wobbleX = (((vertex.col * 17 + vertex.row * 29 + componentIndex * 11) % 9) - 4) * 0.7;
+    const wobbleY = (((vertex.col * 23 + vertex.row * 13 + componentIndex * 7) % 9) - 4) * 0.7;
+    return {
+      x: startX + vertex.col * size + wobbleX,
+      y: startY + vertex.row * size + wobbleY,
+    };
+  }
+
+  private _fillPolygon(
+    graphics: Phaser.GameObjects.Graphics,
+    points: readonly { x: number; y: number }[],
+    color: number,
+    alpha: number,
+    offsetY = 0,
+  ): void {
+    if (points.length === 0) return;
+    graphics.fillStyle(color, alpha);
+    graphics.beginPath();
+    graphics.moveTo(points[0]!.x, points[0]!.y + offsetY);
+    for (let i = 1; i < points.length; i += 1) {
+      graphics.lineTo(points[i]!.x, points[i]!.y + offsetY);
+    }
+    graphics.closePath();
+    graphics.fillPath();
+  }
+
+  private _strokePolygon(
+    graphics: Phaser.GameObjects.Graphics,
+    points: readonly { x: number; y: number }[],
+    width: number,
+    color: number,
+    alpha: number,
+    offsetY = 0,
+  ): void {
+    if (points.length === 0) return;
+    graphics.lineStyle(width, color, alpha);
+    graphics.beginPath();
+    graphics.moveTo(points[0]!.x, points[0]!.y + offsetY);
+    for (let i = 1; i < points.length; i += 1) {
+      graphics.lineTo(points[i]!.x, points[i]!.y + offsetY);
+    }
+    graphics.closePath();
+    graphics.strokePath();
+  }
+
+  private _cellKey(cell: Pick<WallCell, 'col' | 'row'>): string {
+    return `${cell.col}:${cell.row}`;
+  }
+
+  private _edgeKey(a: WallCell, b: WallCell): string {
+    const first = this._cellKey(a);
+    const second = this._cellKey(b);
+    return first < second ? `${first}|${second}` : `${second}|${first}`;
   }
 
   private _drawHUD(): void {

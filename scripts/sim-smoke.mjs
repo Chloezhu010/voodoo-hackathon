@@ -48,6 +48,25 @@ function ok(message) {
   ok('coverage: stack coverage and clearance detection');
 }
 
+{
+  const blocks = [
+    { id: 'center', col: 1, row: 1, z: 0 },
+    { id: 'open', col: 2, row: 2, z: 0 },
+  ];
+  const coverage = computeCoverage(blocks, {
+    boardSize: { cols: 4, rows: 4 },
+    walls: [
+      { col: 0, row: 1 },
+      { col: 2, row: 1 },
+      { col: 1, row: 0 },
+      { col: 1, row: 2 },
+    ],
+  });
+  assert.equal(coverage.get('center'), true, 'wall-enclosed block must be covered');
+  assert.equal(coverage.get('open'), false, 'block with an open side must be uncovered');
+  ok('coverage: wall enclosure blocks interaction');
+}
+
 // --- conveyor track --------------------------------------------------------
 {
   const track = new ConveyorTrack();

@@ -1,4 +1,4 @@
-import { CONFIG, UI } from '../config/constants.js';
+import { CONFIG } from '../config/constants.js';
 
 import type { Conveyor } from './Conveyor.js';
 import type { Marble } from './Marble.js';
@@ -33,43 +33,7 @@ export class Funnel {
   }
 
   render(): void {
-    const area = CONFIG.FUNNEL_AREA;
-    const topLeft = { x: area.x, y: area.y + 10 };
-    const topRight = { x: area.x + area.width, y: area.y + 10 };
-    const bottomRight = { x: area.x + area.width * 0.58, y: area.y + area.height - 10 };
-    const bottomLeft = { x: area.x + area.width * 0.42, y: area.y + area.height - 10 };
-
     this.graphics.clear();
-    this.graphics.fillStyle(0x2d477a, 0.18);
-    this.graphics.lineStyle(8, UI.BLUE_STROKE, 0.72);
-    this.graphics.beginPath();
-    this.graphics.moveTo(topLeft.x - 8, topLeft.y + 8);
-    this.graphics.lineTo(topRight.x + 8, topRight.y + 8);
-    this.graphics.lineTo(bottomRight.x + 6, bottomRight.y + 8);
-    this.graphics.lineTo(bottomLeft.x - 6, bottomLeft.y + 8);
-    this.graphics.closePath();
-    this.graphics.fillPath();
-    this.graphics.strokePath();
-
-    this.graphics.fillStyle(0xf4f8ff, 1);
-    this.graphics.lineStyle(4, 0xffffff, 0.7);
-    this.graphics.beginPath();
-    this.graphics.moveTo(topLeft.x, topLeft.y);
-    this.graphics.lineTo(topRight.x, topRight.y);
-    this.graphics.lineTo(bottomRight.x, bottomRight.y);
-    this.graphics.lineTo(bottomLeft.x, bottomLeft.y);
-    this.graphics.closePath();
-    this.graphics.fillPath();
-    this.graphics.strokePath();
-
-    this.graphics.fillStyle(0x000000, 0.1);
-    this.graphics.fillRoundedRect(
-      area.x + area.width * 0.42,
-      area.y + area.height - 8,
-      area.width * 0.16,
-      16,
-      8,
-    );
   }
 
   reserveSlot(marble: Marble): FunnelSlot {

@@ -1,0 +1,350 @@
+{
+  "generatedBy": "scripts/render-art-assets.mjs",
+  "assets": [
+    {
+      "path": "assets/art/background/sky.svg",
+      "label": "Sky background",
+      "description": "Plain game background color."
+    },
+    {
+      "path": "assets/art/board/playfield-shell.svg",
+      "label": "Playfield shell",
+      "description": "Hand-drawn board shell with bottom inward mouth."
+    },
+    {
+      "path": "assets/art/board/wall-region-sample.svg",
+      "label": "Wall region sample",
+      "description": "Continuous dark wall region. The runtime merges wall cells into regions like this."
+    },
+    {
+      "path": "assets/art/board/funnel-mouth.svg",
+      "label": "Funnel mouth cut-in",
+      "description": "Standalone editable version of the board bottom inward mouth."
+    },
+    {
+      "path": "assets/art/board/conveyor-dock.svg",
+      "label": "Conveyor dock",
+      "description": "Rounded background panel that sits under the conveyor."
+    },
+    {
+      "path": "assets/art/board/box-column-dock.svg",
+      "label": "Box column dock",
+      "description": "Subtle background behind the box columns."
+    },
+    {
+      "path": "assets/art/conveyor/conveyor-track.svg",
+      "label": "Conveyor track",
+      "description": "Looping conveyor track without marbles."
+    },
+    {
+      "path": "assets/art/conveyor/slot-empty.svg",
+      "label": "Conveyor empty slot",
+      "description": "Empty conveyor slot marker."
+    },
+    {
+      "path": "assets/art/conveyor/slot-occupied.svg",
+      "label": "Conveyor occupied slot",
+      "description": "Occupied conveyor slot marker."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-empty.svg",
+      "label": "Output port empty",
+      "description": "Output port gate with no active top box color."
+    },
+    {
+      "path": "assets/art/marbles/marble-pink.svg",
+      "label": "Pink marble",
+      "description": "Single loose marble."
+    },
+    {
+      "path": "assets/art/blocks/block-pink-open.svg",
+      "label": "Pink open block",
+      "description": "Clickable block with visible internal 3x3 marbles."
+    },
+    {
+      "path": "assets/art/blocks/block-pink-covered.svg",
+      "label": "Pink covered block",
+      "description": "Blocked block without exposed internal marbles."
+    },
+    {
+      "path": "assets/art/boxes/box-pink-empty.svg",
+      "label": "Pink empty box",
+      "description": "Box with empty receiving slots."
+    },
+    {
+      "path": "assets/art/boxes/box-pink-full.svg",
+      "label": "Pink full box",
+      "description": "Box with all three receiving slots filled."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-pink.svg",
+      "label": "Pink output port",
+      "description": "Output port gate for a matching top box color."
+    },
+    {
+      "path": "assets/art/ui/swatch-pink.svg",
+      "label": "Pink swatch",
+      "description": "Editor color swatch."
+    },
+    {
+      "path": "assets/art/marbles/marble-blue.svg",
+      "label": "Blue marble",
+      "description": "Single loose marble."
+    },
+    {
+      "path": "assets/art/blocks/block-blue-open.svg",
+      "label": "Blue open block",
+      "description": "Clickable block with visible internal 3x3 marbles."
+    },
+    {
+      "path": "assets/art/blocks/block-blue-covered.svg",
+      "label": "Blue covered block",
+      "description": "Blocked block without exposed internal marbles."
+    },
+    {
+      "path": "assets/art/boxes/box-blue-empty.svg",
+      "label": "Blue empty box",
+      "description": "Box with empty receiving slots."
+    },
+    {
+      "path": "assets/art/boxes/box-blue-full.svg",
+      "label": "Blue full box",
+      "description": "Box with all three receiving slots filled."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-blue.svg",
+      "label": "Blue output port",
+      "description": "Output port gate for a matching top box color."
+    },
+    {
+      "path": "assets/art/ui/swatch-blue.svg",
+      "label": "Blue swatch",
+      "description": "Editor color swatch."
+    },
+    {
+      "path": "assets/art/marbles/marble-green.svg",
+      "label": "Green marble",
+      "description": "Single loose marble."
+    },
+    {
+      "path": "assets/art/blocks/block-green-open.svg",
+      "label": "Green open block",
+      "description": "Clickable block with visible internal 3x3 marbles."
+    },
+    {
+      "path": "assets/art/blocks/block-green-covered.svg",
+      "label": "Green covered block",
+      "description": "Blocked block without exposed internal marbles."
+    },
+    {
+      "path": "assets/art/boxes/box-green-empty.svg",
+      "label": "Green empty box",
+      "description": "Box with empty receiving slots."
+    },
+    {
+      "path": "assets/art/boxes/box-green-full.svg",
+      "label": "Green full box",
+      "description": "Box with all three receiving slots filled."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-green.svg",
+      "label": "Green output port",
+      "description": "Output port gate for a matching top box color."
+    },
+    {
+      "path": "assets/art/ui/swatch-green.svg",
+      "label": "Green swatch",
+      "description": "Editor color swatch."
+    },
+    {
+      "path": "assets/art/marbles/marble-yellow.svg",
+      "label": "Yellow marble",
+      "description": "Single loose marble."
+    },
+    {
+      "path": "assets/art/blocks/block-yellow-open.svg",
+      "label": "Yellow open block",
+      "description": "Clickable block with visible internal 3x3 marbles."
+    },
+    {
+      "path": "assets/art/blocks/block-yellow-covered.svg",
+      "label": "Yellow covered block",
+      "description": "Blocked block without exposed internal marbles."
+    },
+    {
+      "path": "assets/art/boxes/box-yellow-empty.svg",
+      "label": "Yellow empty box",
+      "description": "Box with empty receiving slots."
+    },
+    {
+      "path": "assets/art/boxes/box-yellow-full.svg",
+      "label": "Yellow full box",
+      "description": "Box with all three receiving slots filled."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-yellow.svg",
+      "label": "Yellow output port",
+      "description": "Output port gate for a matching top box color."
+    },
+    {
+      "path": "assets/art/ui/swatch-yellow.svg",
+      "label": "Yellow swatch",
+      "description": "Editor color swatch."
+    },
+    {
+      "path": "assets/art/marbles/marble-purple.svg",
+      "label": "Purple marble",
+      "description": "Single loose marble."
+    },
+    {
+      "path": "assets/art/blocks/block-purple-open.svg",
+      "label": "Purple open block",
+      "description": "Clickable block with visible internal 3x3 marbles."
+    },
+    {
+      "path": "assets/art/blocks/block-purple-covered.svg",
+      "label": "Purple covered block",
+      "description": "Blocked block without exposed internal marbles."
+    },
+    {
+      "path": "assets/art/boxes/box-purple-empty.svg",
+      "label": "Purple empty box",
+      "description": "Box with empty receiving slots."
+    },
+    {
+      "path": "assets/art/boxes/box-purple-full.svg",
+      "label": "Purple full box",
+      "description": "Box with all three receiving slots filled."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-purple.svg",
+      "label": "Purple output port",
+      "description": "Output port gate for a matching top box color."
+    },
+    {
+      "path": "assets/art/ui/swatch-purple.svg",
+      "label": "Purple swatch",
+      "description": "Editor color swatch."
+    },
+    {
+      "path": "assets/art/marbles/marble-orange.svg",
+      "label": "Orange marble",
+      "description": "Single loose marble."
+    },
+    {
+      "path": "assets/art/blocks/block-orange-open.svg",
+      "label": "Orange open block",
+      "description": "Clickable block with visible internal 3x3 marbles."
+    },
+    {
+      "path": "assets/art/blocks/block-orange-covered.svg",
+      "label": "Orange covered block",
+      "description": "Blocked block without exposed internal marbles."
+    },
+    {
+      "path": "assets/art/boxes/box-orange-empty.svg",
+      "label": "Orange empty box",
+      "description": "Box with empty receiving slots."
+    },
+    {
+      "path": "assets/art/boxes/box-orange-full.svg",
+      "label": "Orange full box",
+      "description": "Box with all three receiving slots filled."
+    },
+    {
+      "path": "assets/art/conveyor/output-port-orange.svg",
+      "label": "Orange output port",
+      "description": "Output port gate for a matching top box color."
+    },
+    {
+      "path": "assets/art/ui/swatch-orange.svg",
+      "label": "Orange swatch",
+      "description": "Editor color swatch."
+    },
+    {
+      "path": "assets/art/blocks/block-hidden.svg",
+      "label": "Hidden block",
+      "description": "Covered hidden block with question mark."
+    },
+    {
+      "path": "assets/art/ui/button-primary.svg",
+      "label": "Primary button background",
+      "description": "Purple rounded button background without text."
+    },
+    {
+      "path": "assets/art/ui/button-accent.svg",
+      "label": "Accent button background",
+      "description": "Yellow rounded button background without text."
+    },
+    {
+      "path": "assets/art/ui/back-button.svg",
+      "label": "Back button background",
+      "description": "Small square rounded back button background without text."
+    },
+    {
+      "path": "assets/art/ui/hud-pill.svg",
+      "label": "HUD pill background",
+      "description": "Top HUD pill background without text."
+    },
+    {
+      "path": "assets/art/ui/panel.svg",
+      "label": "Panel background",
+      "description": "Generic blue-white rounded panel."
+    },
+    {
+      "path": "assets/art/ui/level-card.svg",
+      "label": "Level card background",
+      "description": "Level select card background without text."
+    },
+    {
+      "path": "assets/art/ui/level-badge.svg",
+      "label": "Level badge background",
+      "description": "Level card number badge background without text."
+    },
+    {
+      "path": "assets/art/ui/arrow-button.svg",
+      "label": "Arrow button",
+      "description": "Level card arrow button."
+    },
+    {
+      "path": "assets/art/ui/toast-panel.svg",
+      "label": "Toast panel",
+      "description": "Floating tutorial toast background without text."
+    },
+    {
+      "path": "assets/art/ui/game-over-panel.svg",
+      "label": "Game over panel",
+      "description": "Large result panel background."
+    },
+    {
+      "path": "assets/art/ui/result-badge-win.svg",
+      "label": "Win result badge",
+      "description": "Round badge used for win state."
+    },
+    {
+      "path": "assets/art/ui/result-badge-lose.svg",
+      "label": "Lose result badge",
+      "description": "Round badge used for lose state."
+    },
+    {
+      "path": "assets/art/ui/editor-grid-panel.svg",
+      "label": "Editor grid panel",
+      "description": "Editor grid background panel."
+    },
+    {
+      "path": "assets/art/ui/icon-gear.svg",
+      "label": "Gear icon",
+      "description": "Menu settings gear icon."
+    },
+    {
+      "path": "assets/art/ui/icon-plus.svg",
+      "label": "Plus icon",
+      "description": "Add button plus icon."
+    },
+    {
+      "path": "assets/art/ui/icon-lock.svg",
+      "label": "Lock icon",
+      "description": "Locked level icon."
+    }
+  ]
+}

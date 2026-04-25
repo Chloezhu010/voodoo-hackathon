@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" fill="none">
+
+  <path d="M96 46H292V0L322 -32H398L428 0V46H624L666 80L682 130V328L640 368H80L38 328V130L54 80Z" fill="#324b82" opacity="0.24" transform="translate(0 14)"/>
+  <path d="M96 46H292V0L322 -32H398L428 0V46H624L666 80L682 130V328L640 368H80L38 328V130L54 80Z" fill="#f4f8ff" transform="translate(0 32)"/>
+  <path d="M118 66H602L632 94L642 130H78L88 94Z" fill="#ffffff" opacity="0.2" transform="translate(0 32)"/>
+  <path d="M96 46H292V0L322 -32H398L428 0V46H624L666 80L682 130V328L640 368H80L38 328V130L54 80Z" stroke="#38598e" stroke-width="18" opacity="0.44" transform="translate(0 42)" stroke-linejoin="round"/>
+  <path d="M96 46H292V0L322 -32H398L428 0V46H624L666 80L682 130V328L640 368H80L38 328V130L54 80Z" stroke="#4969a1" stroke-width="10" opacity="0.9" transform="translate(0 32)" stroke-linejoin="round"/>
+  <path d="M96 46H292V0L322 -32H398L428 0V46H624L666 80L682 130V328L640 368H80L38 328V130L54 80Z" stroke="#ffffff" stroke-width="3" opacity="0.32" transform="translate(0 30)" stroke-linejoin="round"/>
+
+</svg>

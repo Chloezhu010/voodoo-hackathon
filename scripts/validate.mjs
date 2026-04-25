@@ -54,6 +54,7 @@ function checkLevelFiles() {
 
     const blockIds = new Set();
     const occupiedLayers = new Set();
+    const occupiedBlockCells = new Set();
     const blockColorCounts = new Map();
     const boxColorCounts = new Map();
     const boxColumns = new Set();
@@ -75,8 +76,26 @@ function checkLevelFiles() {
       const layerKey = `${block.col}:${block.row}:${block.z}`;
       if (occupiedLayers.has(layerKey)) fail(`${file}: duplicate block layer ${layerKey}`);
       occupiedLayers.add(layerKey);
+      occupiedBlockCells.add(`${block.col}:${block.row}`);
       blockColorCounts.set(block.color, (blockColorCounts.get(block.color) || 0) + 1);
     });
+
+    if (data.walls !== undefined) {
+      if (!Array.isArray(data.walls)) fail(`${file}: walls must be an array`);
+      const wallCells = new Set();
+      data.walls.forEach((wall, index) => {
+        if (!Number.isInteger(wall.col) || !Number.isInteger(wall.row)) {
+          fail(`${file}: wall ${index} col/row must be integers`);
+        }
+        if (wall.col < 0 || wall.col >= data.board_size.cols || wall.row < 0 || wall.row >= data.board_size.rows) {
+          fail(`${file}: wall ${index} is outside board`);
+        }
+        const key = `${wall.col}:${wall.row}`;
+        if (wallCells.has(key)) fail(`${file}: duplicate wall cell ${key}`);
+        if (occupiedBlockCells.has(key)) fail(`${file}: wall ${key} overlaps a block`);
+        wallCells.add(key);
+      });
+    }
 
     let totalBoxes = 0;
     data.box_columns.forEach((column, index) => {

@@ -30,12 +30,18 @@ export interface BoardSize {
   rows: number;
 }
 
+export interface WallCell {
+  col: number;
+  row: number;
+}
+
 export interface LevelData {
   level_id: number;
   name: string;
   difficulty: number;
   board_size: BoardSize;
   blocks: BlockRecord[];
+  walls?: WallCell[];
   box_columns: BoxColumn[];
   trays?: TrayConfig[];
   conveyor_speed?: number;
