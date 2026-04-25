@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" fill="none">
 
-  <circle cx="78" cy="84" r="64" fill="#a73461" opacity="0.28"/>
-  <circle cx="75" cy="75" r="64" fill="#ff6f9f"/>
-  <circle cx="55" cy="53" r="20" fill="#ffffff" opacity="0.38"/>
-  <circle cx="75" cy="75" r="60" stroke="#ffffff" stroke-width="6" opacity="0.46"/>
+  <circle cx="80" cy="86" r="64" fill="#24325f" opacity="0.28"/>
+  <circle cx="75" cy="78" r="64" fill="#a73461"/>
+  <circle cx="75" cy="72" r="62" fill="#ff6f9f"/>
+  <circle cx="55" cy="51" r="18" fill="#ffffff" opacity="0.32"/>
+  <circle cx="75" cy="72" r="58" stroke="#ffffff" stroke-width="6" opacity="0.42"/>
 
 </svg>

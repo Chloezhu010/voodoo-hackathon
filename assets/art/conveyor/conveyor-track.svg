@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="320" viewBox="0 0 640 320" fill="none">
 
-  <path d="M50 85H590A75 75 0 0 1 590 235H50A75 75 0 0 1 50 85Z" stroke="#4969a1" stroke-width="52" stroke-linejoin="round"/>
-  <path d="M50 85H590A75 75 0 0 1 590 235H50A75 75 0 0 1 50 85Z" stroke="#d9e7f6" stroke-width="42" stroke-linejoin="round"/>
-  <path d="M50 85H590A75 75 0 0 1 590 235H50A75 75 0 0 1 50 85Z" stroke="#8b97ab" stroke-width="28" stroke-linejoin="round"/>
-  <path d="M50 85H590A75 75 0 0 1 590 235H50A75 75 0 0 1 50 85Z" stroke="#5f687d" stroke-width="18" stroke-linejoin="round"/>
-  <path d="M50 85H590A75 75 0 0 1 590 235H50A75 75 0 0 1 50 85Z" stroke="#ffffff" stroke-width="3" opacity="0.38" stroke-linejoin="round"/>
+  <path d="M78 92H562A68 68 0 0 1 562 228H78A68 68 0 0 1 78 92Z" fill="#3d5d93" opacity="0.28" transform="translate(0 10)"/>
+  <path d="M78 92H562A68 68 0 0 1 562 228H78A68 68 0 0 1 78 92Z" fill="#f4f6ff"/>
+  <path d="M82 103H558A57 57 0 0 1 558 217H82A57 57 0 0 1 82 103Z" fill="#9a9dad"/>
+  <path d="M95 118H545A42 42 0 0 1 545 202H95A42 42 0 0 1 95 118Z" fill="#74788a"/>
+  <rect x="112" y="151" width="416" height="19" rx="10" fill="#5b6074" opacity="0.42"/>
+  <rect x="102" y="146" width="436" height="17" rx="9" fill="#ffffff"/>
+  <rect x="114" y="151" width="412" height="6" rx="3" fill="#d7dbe8"/>
+  <path d="M78 92H562A68 68 0 0 1 562 228H78A68 68 0 0 1 78 92Z" stroke="#ffffff" stroke-width="5" opacity="0.9"/>
+  <path d="M82 103H558A57 57 0 0 1 558 217H82A57 57 0 0 1 82 103Z" stroke="#686d7f" stroke-width="4" opacity="0.5"/>
 
 </svg>

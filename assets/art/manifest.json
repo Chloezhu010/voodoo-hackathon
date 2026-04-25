@@ -18,8 +18,8 @@
     },
     {
       "path": "assets/art/board/funnel-mouth.svg",
-      "label": "Funnel mouth cut-in",
-      "description": "Standalone editable version of the board bottom inward mouth."
+      "label": "Neck opening guide",
+      "description": "Standalone editable guide for the smooth board neck opening."
     },
     {
       "path": "assets/art/board/conveyor-dock.svg",
@@ -297,6 +297,11 @@
       "description": "Level select card background without text."
     },
     {
+      "path": "assets/art/ui/locked-level-card.svg",
+      "label": "Locked level card",
+      "description": "Reference-style locked level card."
+    },
+    {
       "path": "assets/art/ui/level-badge.svg",
       "label": "Level badge background",
       "description": "Level card number badge background without text."
@@ -330,6 +335,21 @@
       "path": "assets/art/ui/editor-grid-panel.svg",
       "label": "Editor grid panel",
       "description": "Editor grid background panel."
+    },
+    {
+      "path": "assets/art/ui/coin.svg",
+      "label": "Coin",
+      "description": "HUD coin token matching the reference top bar."
+    },
+    {
+      "path": "assets/art/ui/settings-button.svg",
+      "label": "Settings button",
+      "description": "Top-left purple settings button with gear."
+    },
+    {
+      "path": "assets/art/ui/plus-button.svg",
+      "label": "Plus button",
+      "description": "Top-right yellow add button."
     },
     {
       "path": "assets/art/ui/icon-gear.svg",

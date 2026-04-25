@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="180" height="150" viewBox="0 0 180 150" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="170" viewBox="0 0 220 170" fill="none">
 
-  <path d="M0 0H180L136 68V150H44V68Z" fill="#38598e" opacity="0.18" transform="translate(0 8)"/>
-  <path d="M0 0H180L136 68V150H44V68Z" fill="#f4f8ff" opacity="0.96"/>
-  <path d="M0 0H180L136 68V150H44V68Z" stroke="#466aa0" stroke-width="10" stroke-linejoin="round" opacity="0.56"/>
-  <path d="M20 14H160L124 68V126H56V68Z" stroke="#ffffff" stroke-width="3" opacity="0.3" stroke-linejoin="round"/>
+  <path d="M0 0L62 26L92 62V118H128V62L158 26L220 0V170H0Z" fill="#d4def2"/>
+  <path d="M0 0L62 26L92 62V118H128V62L158 26L220 0V170H0Z" stroke="#466aa0" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M28 22L74 44L104 78V128H116V78L146 44L192 22" stroke="#ffffff" stroke-width="8" opacity="0.32" stroke-linecap="round" stroke-linejoin="round"/>
 
 </svg>
