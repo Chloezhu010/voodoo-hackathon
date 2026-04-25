@@ -1,21 +1,30 @@
 import { CONFIG } from '../config/constants.js';
-import ConveyorTrack from '../systems/ConveyorTrack.js';
+import { ConveyorTrack } from '../sim/conveyorTrack.js';
+import type { ColorId } from '../sim/types.js';
 
-export default class Conveyor {
-  constructor(scene, speed = CONFIG.CONVEYOR.DEFAULT_SPEED) {
+import type { Marble } from './Marble.js';
+import type { OutputPort } from './OutputPort.js';
+
+export class Conveyor {
+  readonly scene: Phaser.Scene;
+  readonly track: ConveyorTrack;
+  speed: number;
+  marbles: Marble[] = [];
+  outputPorts: OutputPort[] = [];
+  isPaused = false;
+  private _overflowFired = false;
+  private _entryOffset = 0;
+  trackGraphics?: Phaser.GameObjects.Graphics;
+  tickGraphics?: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene, speed: number = CONFIG.CONVEYOR.DEFAULT_SPEED) {
     this.scene = scene;
     this.track = new ConveyorTrack();
     this.speed = speed;
-    this.marbles = [];
-    this.outputPorts = [];
-    this.isPaused = false;
-    this._overflowFired = false;
-    this._entryOffset = 0;
-
     this._renderTrack();
   }
 
-  _renderTrack() {
+  private _renderTrack(): void {
     const graphics = this.scene.add.graphics();
     graphics.setDepth(35);
     this._strokeTrack(graphics, 36, 0x2a2a3e, 1);
@@ -33,7 +42,7 @@ export default class Conveyor {
     this.tickGraphics = tickGraphics;
   }
 
-  _strokeTrack(graphics, width, color, alpha) {
+  private _strokeTrack(graphics: Phaser.GameObjects.Graphics, width: number, color: number, alpha: number): void {
     graphics.lineStyle(width, color, alpha);
     graphics.beginPath();
     const first = this.track.positionAt(0);
@@ -46,11 +55,11 @@ export default class Conveyor {
     graphics.strokePath();
   }
 
-  registerOutputPort(port) {
+  registerOutputPort(port: OutputPort): void {
     this.outputPorts.push(port);
   }
 
-  acceptMarble(marble) {
+  acceptMarble(marble: Marble): boolean {
     if (this.marbles.length >= CONFIG.CONVEYOR.TOTAL_CAPACITY) {
       this._handleOverflow(marble);
       return false;
@@ -66,18 +75,19 @@ export default class Conveyor {
     return true;
   }
 
-  _handleOverflow(marble) {
+  private _handleOverflow(marble: Marble): void {
     marble.state = 'overflow-exit';
     if (marble.sprite) {
+      const sprite = marble.sprite;
       this.scene.tweens.add({
-        targets: marble.sprite,
-        x: marble.sprite.x + Phaser.Math.Between(-8, 8),
+        targets: sprite,
+        x: sprite.x + Phaser.Math.Between(-8, 8),
         duration: 60,
         repeat: 4,
         yoyo: true,
         onComplete: () => {
-          marble.flyTo(marble.sprite.x, marble.sprite.y - 200, 400, 'Cubic.easeIn', () => marble.destroy());
-        }
+          marble.flyTo(sprite.x, sprite.y - 200, 400, 'Cubic.easeIn', () => marble.destroy());
+        },
       });
     } else {
       marble.destroy();
@@ -89,7 +99,7 @@ export default class Conveyor {
     }
   }
 
-  update(dt) {
+  update(dt: number): void {
     if (this.isPaused) return;
     const advance = this.speed * (dt / 1000);
 
@@ -109,12 +119,12 @@ export default class Conveyor {
     }
   }
 
-  _tDistance(a, b) {
+  private _tDistance(a: number, b: number): number {
     const distance = Math.abs(a - b);
     return Math.min(distance, 1 - distance);
   }
 
-  _dropMarble(marble, port) {
+  private _dropMarble(marble: Marble, port: OutputPort): void {
     const index = this.marbles.indexOf(marble);
     if (index !== -1) this.marbles.splice(index, 1);
 
@@ -131,7 +141,7 @@ export default class Conveyor {
     });
   }
 
-  magnetize(color) {
+  magnetize(color: ColorId): number {
     const matched = this.marbles.filter((marble) => (
       marble.state === 'on-conveyor' && marble.color === color
     ));
@@ -162,13 +172,13 @@ export default class Conveyor {
     return matched.length;
   }
 
-  setPaused(paused) {
+  setPaused(paused: boolean): void {
     this.isPaused = paused;
     this.trackGraphics?.setAlpha(paused ? 0.45 : 1);
     this.tickGraphics?.setAlpha(paused ? 0.35 : 1);
   }
 
-  count() {
+  count(): number {
     return this.marbles.length;
   }
 }

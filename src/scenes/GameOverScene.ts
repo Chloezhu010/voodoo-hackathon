@@ -1,18 +1,28 @@
 import { CONFIG, UI } from '../config/constants.js';
 import { attachHitZone } from '../ui/hitZones.js';
 
-export default class GameOverScene extends Phaser.Scene {
+interface GameOverSceneData {
+  result?: 'win' | 'lose';
+  levelId?: number;
+  fromEditor?: boolean;
+}
+
+export class GameOverScene extends Phaser.Scene {
+  private result: 'win' | 'lose' = 'lose';
+  private levelId = 1;
+  private fromEditor = false;
+
   constructor() {
     super('GameOverScene');
   }
 
-  init(data = {}) {
-    this.result = data.result || 'lose';
-    this.levelId = data.levelId || 1;
+  init(data: GameOverSceneData = {}): void {
+    this.result = data.result ?? 'lose';
+    this.levelId = data.levelId ?? 1;
     this.fromEditor = Boolean(data.fromEditor);
   }
 
-  create() {
+  create(): void {
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
     const overlay = this.add.graphics();
@@ -29,18 +39,14 @@ export default class GameOverScene extends Phaser.Scene {
     this.add.text(CONFIG.GAME_WIDTH / 2, 470, isWin ? 'LEVEL CLEAR!' : 'OUT OF SPACE!', {
       fontSize: '46px',
       color: isWin ? '#ffd86b' : '#ff9a9a',
-      fontStyle: 'bold'
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
     this.add.text(
       CONFIG.GAME_WIDTH / 2,
       540,
       isWin ? 'Boxes cleared' : 'The conveyor is full',
-      {
-        fontSize: '24px',
-        color: UI.MUTED_TEXT,
-        fontStyle: 'bold'
-      }
+      { fontSize: '24px', color: UI.MUTED_TEXT, fontStyle: 'bold' },
     ).setOrigin(0.5);
 
     const primaryLabel = this.fromEditor ? 'BACK TO EDITOR' : 'RETRY';
@@ -59,7 +65,14 @@ export default class GameOverScene extends Phaser.Scene {
     });
   }
 
-  _makeButton(x, y, width, height, label, fillColor) {
+  private _makeButton(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    label: string,
+    fillColor: number,
+  ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
     const bg = this.add.graphics();
     bg.fillStyle(fillColor, 1);
@@ -70,7 +83,7 @@ export default class GameOverScene extends Phaser.Scene {
     const text = this.add.text(0, 0, label, {
       fontSize: label.length > 8 ? '26px' : '30px',
       color: '#ffffff',
-      fontStyle: 'bold'
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
     container.add([bg, text]);

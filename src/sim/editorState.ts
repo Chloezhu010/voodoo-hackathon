@@ -1,15 +1,22 @@
 import { COLOR_IDS } from '../config/colors.js';
 
-/**
- * Default ID generator. Uses crypto.randomUUID() when available (Node ≥19, modern
- * browsers). Tests should pass `{ idGen }` to inject a deterministic counter.
- */
-function defaultIdGen() {
+import type { BlockRecord, BoxColumn, ColorId, IdGen, LevelData, TrayConfig } from './types.js';
+
+interface DefaultIdGen {
+  (): string;
+  _n?: number;
+}
+
+const defaultIdGen: DefaultIdGen = () => {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return `b_${globalThis.crypto.randomUUID()}`;
   }
-  defaultIdGen._n = (defaultIdGen._n || 0) + 1;
+  defaultIdGen._n = (defaultIdGen._n ?? 0) + 1;
   return `b_fallback_${defaultIdGen._n}`;
+};
+
+export interface EditorStateOptions {
+  idGen?: IdGen;
 }
 
 /**
@@ -17,24 +24,27 @@ function defaultIdGen() {
  * Inject `idGen` for deterministic tests.
  */
 export class EditorState {
-  constructor({ idGen = defaultIdGen } = {}) {
-    this._idGen = idGen;
-    this.gridCols = 5;
-    this.gridRows = 5;
-    this.blocks = [];
-    this.trays = [];
-    this.boxColumns = this._emptyBoxColumns();
-    this.queueCapacity = 12;
-    this.gravityFlipEnabled = false;
-    this.magnetCount = 0;
+  private readonly _idGen: IdGen;
+  gridCols = 5;
+  gridRows = 5;
+  blocks: BlockRecord[] = [];
+  trays: TrayConfig[] = [];
+  boxColumns: BoxColumn[];
+  queueCapacity = 12;
+  gravityFlipEnabled = false;
+  magnetCount = 0;
 
-    this.activeColor = 'pink';
-    this.activeZ = 0;
-    this.activeIsHidden = false;
-    this.eraseMode = false;
+  activeColor: ColorId = 'pink';
+  activeZ = 0;
+  activeIsHidden = false;
+  eraseMode = false;
+
+  constructor({ idGen = defaultIdGen }: EditorStateOptions = {}) {
+    this._idGen = idGen;
+    this.boxColumns = this._emptyBoxColumns();
   }
 
-  placeBlock(col, row) {
+  placeBlock(col: number, row: number): void {
     if (this.eraseMode) {
       this.removeBlock(col, row);
       return;
@@ -60,16 +70,16 @@ export class EditorState {
     });
   }
 
-  removeBlock(col, row) {
+  removeBlock(col: number, row: number): void {
     const stack = this.blocks
       .filter((block) => block.col === col && block.row === row)
       .sort((a, b) => b.z - a.z);
     if (stack.length === 0) return;
-    const top = stack[0];
+    const top = stack[0]!;
     this.blocks = this.blocks.filter((block) => block.id !== top.id);
   }
 
-  toggleTray(color) {
+  toggleTray(color: ColorId): void {
     const index = this.trays.findIndex((tray) => tray.color === color);
     if (index >= 0) {
       this.trays.splice(index, 1);
@@ -79,23 +89,23 @@ export class EditorState {
     this.trays.sort((a, b) => COLOR_IDS.indexOf(a.color) - COLOR_IDS.indexOf(b.color));
   }
 
-  setQueueCapacity(value) {
+  setQueueCapacity(value: number): void {
     this.queueCapacity = value;
   }
 
-  setActiveZ(value) {
+  setActiveZ(value: number): void {
     this.activeZ = Math.max(0, Math.min(2, value));
   }
 
-  setMagnetCount(value) {
+  setMagnetCount(value: number): void {
     this.magnetCount = Math.max(0, Math.min(3, value));
   }
 
-  exportJSON() {
+  exportJSON(): string {
     return JSON.stringify(this.toLevelData(), null, 2);
   }
 
-  toLevelData() {
+  toLevelData(): LevelData {
     const sortedBlocks = [...this.blocks].sort(
       (a, b) => a.row - b.row || a.col - b.col || a.z - b.z || a.id.localeCompare(b.id),
     );
@@ -112,8 +122,8 @@ export class EditorState {
     };
   }
 
-  importJSON(jsonStr) {
-    const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+  importJSON(jsonStr: string | LevelData): void {
+    const data = typeof jsonStr === 'string' ? (JSON.parse(jsonStr) as LevelData) : jsonStr;
     if (!data || typeof data !== 'object') throw new Error('Invalid JSON object.');
     if (!data.board_size) throw new Error('Missing board_size.');
     if (!Array.isArray(data.blocks)) throw new Error('Missing blocks array.');
@@ -139,31 +149,31 @@ export class EditorState {
     this.magnetCount = data.magnet_count || 0;
   }
 
-  clear() {
+  clear(): void {
     this.blocks = [];
     this.trays = [];
     this.boxColumns = this._emptyBoxColumns();
   }
 
-  _emptyBoxColumns() {
+  private _emptyBoxColumns(): BoxColumn[] {
     return [0, 1, 2, 3].map((col) => ({ col, boxes: [] }));
   }
 
-  _deriveBoxColumns(blocks) {
+  private _deriveBoxColumns(blocks: readonly BlockRecord[]): BoxColumn[] {
     const columns = this._emptyBoxColumns();
     let columnIndex = 0;
-    COLOR_IDS.forEach((color) => {
+    (COLOR_IDS as ColorId[]).forEach((color) => {
       const blockCount = blocks.filter((block) => block.color === color).length;
       for (let i = 0; i < blockCount * 3; i += 1) {
-        columns[columnIndex % columns.length].boxes.push(color);
+        columns[columnIndex % columns.length]!.boxes.push(color);
         columnIndex += 1;
       }
     });
     return columns;
   }
 
-  _legacyTraysFromBoxColumns() {
-    const seen = new Set(this.boxColumns.flatMap((column) => column.boxes));
+  private _legacyTraysFromBoxColumns(): TrayConfig[] {
+    const seen = new Set<ColorId>(this.boxColumns.flatMap((column) => column.boxes));
     return [...seen].map((color) => ({ color, capacity: 6 }));
   }
 }

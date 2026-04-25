@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 
-const sim = await import(join(ROOT, 'src/sim/index.js'));
+const sim = await import(join(ROOT, 'src/sim/index.ts'));
 const {
   computeCoverage,
   isBoardCleared,

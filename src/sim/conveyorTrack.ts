@@ -1,10 +1,21 @@
 import { CONFIG } from '../config/constants.js';
 
+import type { Vec2 } from './types.js';
+
 /**
  * Geometric description of the conveyor loop. Pure: no Phaser, no time, no random.
  * Position is parameterised by t ∈ [0,1) advancing along the loop.
  */
 export class ConveyorTrack {
+  readonly cx: number;
+  readonly cy: number;
+  readonly leftX: number;
+  readonly rightX: number;
+  readonly topY: number;
+  readonly bottomY: number;
+  readonly r: number;
+  readonly verticalRadius: number;
+
   constructor() {
     const conveyor = CONFIG.CONVEYOR;
     this.cx = conveyor.AREA.x + conveyor.AREA.width / 2;
@@ -18,7 +29,7 @@ export class ConveyorTrack {
     this.verticalRadius = Math.abs(this.bottomY - this.topY) / 2;
   }
 
-  positionAt(t) {
+  positionAt(t: number): Vec2 {
     const normalized = ((t % 1) + 1) % 1;
 
     if (normalized < 0.4) {
@@ -48,11 +59,11 @@ export class ConveyorTrack {
     };
   }
 
-  get entryT() {
+  get entryT(): number {
     return 0;
   }
 
-  tForLowerLayerX(x) {
+  tForLowerLayerX(x: number): number {
     const ratio = (this.rightX - x) / (this.rightX - this.leftX);
     const clamped = Math.max(0, Math.min(1, ratio));
     return 0.5 + clamped * 0.4;

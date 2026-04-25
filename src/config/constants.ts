@@ -16,14 +16,14 @@ export const CONFIG = {
     DEFAULT_SPEED: 0.06,
     UPPER_LAYER_Y_OFFSET: -100,
     LOWER_LAYER_Y_OFFSET: 100,
-    CORNER_RADIUS: 50
+    CORNER_RADIUS: 50,
   },
 
   OUTPUT_PORTS: {
     Y_OFFSET: 110,
     GAP_BETWEEN: 152,
     PORT_WIDTH: 80,
-    DETECT_EPSILON: 0.012
+    DETECT_EPSILON: 0.012,
   },
 
   BOX_COLUMNS: {
@@ -32,13 +32,13 @@ export const CONFIG = {
     BOX_HEIGHT: 50,
     BOX_GAP: 4,
     SLOT_RADIUS: 12,
-    BOX_CAPACITY: 3
+    BOX_CAPACITY: 3,
   },
 
   MARBLE_FALL_DURATION: 450,
   MARBLE_TO_PORT_DURATION: 350,
-  MARBLE_PORT_DROP_DURATION: 350
-};
+  MARBLE_PORT_DROP_DURATION: 350,
+} as const;
 
 export const UI = {
   BACKGROUND: 0x1a1a2e,
@@ -48,5 +48,5 @@ export const UI = {
   PRIMARY: 0xff6b9d,
   TEXT: '#ffffff',
   MUTED_TEXT: '#a0a0b8',
-  GOLD: 0xffd86b
-};
+  GOLD: 0xffd86b,
+} as const;

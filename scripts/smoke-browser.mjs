@@ -7,7 +7,10 @@ const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const PORT = Number(process.env.PORT || 8010);
 const DEBUG_PORT = Number(process.env.DEBUG_PORT || 9224);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const DEFAULT_CHROME_BIN = process.platform === 'darwin'
+  ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  : 'google-chrome';
+const CHROME_BIN = process.env.CHROME_BIN || DEFAULT_CHROME_BIN;
 const USER_DATA_DIR = `/tmp/marble-sort-chrome-${DEBUG_PORT}`;
 const DEBUG_OUTPUT = process.env.SMOKE_DEBUG === '1';
 
@@ -46,7 +49,9 @@ async function waitForJson(url, timeout = 10000) {
     try {
       const response = await fetch(url);
       if (response.ok) return response.json();
-    } catch {}
+    } catch {
+      // Keep polling until the dev server exposes the endpoint.
+    }
     await delay(250);
   }
   throw new Error(`Timed out waiting for ${url}`);

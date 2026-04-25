@@ -1,20 +1,27 @@
+import { getColorDefinition, type ColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
-import { getColorDefinition } from '../config/colors.js';
-import Box from './Box.js';
+import type { ColorId } from '../sim/types.js';
 
-export default class BoxColumn {
-  constructor(scene, columnIndex, colorSequence, x) {
+import { Box } from './Box.js';
+import type { Marble } from './Marble.js';
+import type { OutputPort } from './OutputPort.js';
+
+export class BoxColumn {
+  readonly scene: Phaser.Scene;
+  readonly columnIndex: number;
+  readonly x: number;
+  boxes: Box[] = [];
+  outputPort: OutputPort | null = null;
+  private _clearedEmitted = false;
+
+  constructor(scene: Phaser.Scene, columnIndex: number, colorSequence: readonly ColorId[], x: number) {
     this.scene = scene;
     this.columnIndex = columnIndex;
     this.x = x;
-    this.boxes = [];
-    this.outputPort = null;
-    this._clearedEmitted = false;
-
     this._buildBoxes(colorSequence);
   }
 
-  _buildBoxes(colorSequence) {
+  private _buildBoxes(colorSequence: readonly ColorId[]): void {
     const area = CONFIG.BOX_COLUMNS.AREA;
     const height = CONFIG.BOX_COLUMNS.BOX_HEIGHT;
     const gap = CONFIG.BOX_COLUMNS.BOX_GAP;
@@ -27,24 +34,24 @@ export default class BoxColumn {
     });
   }
 
-  canAcceptColor(color) {
-    return this.boxes.length > 0 && this.boxes[0].canAccept(color);
+  canAcceptColor(color: ColorId): boolean {
+    return this.boxes.length > 0 && this.boxes[0]!.canAccept(color);
   }
 
-  reserveSlotForColor(color) {
+  reserveSlotForColor(color: ColorId): { x: number; y: number } | null {
     if (!this.canAcceptColor(color)) return null;
-    return this.boxes[0].reserveSlot();
+    return this.boxes[0]!.reserveSlot();
   }
 
-  fillVisualSlot(marble) {
+  fillVisualSlot(marble: Marble): void {
     if (this.boxes.length === 0) return;
-    this.boxes[0].fillVisualSlot(marble);
+    this.boxes[0]!.fillVisualSlot(marble);
   }
 
-  onBoxFull(box) {
+  onBoxFull(box: Box): void {
     if (this.boxes[0] !== box) return;
 
-    const removed = this.boxes.shift();
+    const removed = this.boxes.shift()!;
     if (this.outputPort) this.outputPort.notifyColumnChanged();
 
     removed.destroyWithAnimation(() => {
@@ -62,20 +69,20 @@ export default class BoxColumn {
     this._emitClearedIfNeeded();
   }
 
-  getTopBoxColor() {
+  getTopBoxColor(): ColorDefinition | null {
     if (this.boxes.length === 0) return null;
-    return getColorDefinition(this.boxes[0].color);
+    return getColorDefinition(this.boxes[0]!.color);
   }
 
-  getColorSequence() {
+  getColorSequence(): ColorId[] {
     return this.boxes.map((box) => box.color);
   }
 
-  isEmpty() {
+  isEmpty(): boolean {
     return this.boxes.length === 0;
   }
 
-  _emitClearedIfNeeded() {
+  private _emitClearedIfNeeded(): void {
     if (this.boxes.length > 0 || this._clearedEmitted) return;
     this._clearedEmitted = true;
     this.scene.events.emit('column-cleared', this);

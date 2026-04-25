@@ -1,17 +1,29 @@
 import { computeCoverage, isBoardCleared } from '../sim/coverage.js';
+import type { BlockRecord } from '../sim/types.js';
 
 /**
- * Phaser-side adapter. Pure coverage logic lives in `src/sim/coverage.js`.
- * This wrapper translates between Block entities (with render hooks) and the
- * pure block records the sim layer expects.
+ * Minimal Block-entity contract this manager needs. Kept structural so the
+ * concrete Phaser entity can stay decoupled until its own TS migration.
+ */
+export interface BlockLike {
+  data: Pick<BlockRecord, 'id' | 'col' | 'row' | 'z'>;
+  isCleared: boolean;
+  setCovered(isCovered: boolean): void;
+  refreshInteractivity?(): unknown;
+}
+
+/**
+ * Phaser-side adapter. Pure coverage logic lives in `src/sim/coverage.ts`.
  */
 export class BoardManager {
-  constructor(blocks) {
+  readonly blocks: BlockLike[];
+
+  constructor(blocks: BlockLike[]) {
     this.blocks = blocks;
     this.recomputeCoverage();
   }
 
-  recomputeCoverage() {
+  recomputeCoverage(): void {
     const records = this.blocks.map((block) => ({
       id: block.data.id,
       col: block.data.col,
@@ -28,16 +40,14 @@ export class BoardManager {
     for (const block of this.blocks) block.refreshInteractivity?.();
   }
 
-  onBlockCleared(block) {
+  onBlockCleared(block: BlockLike): void {
     block.isCleared = true;
     this.recomputeCoverage();
   }
 
-  isLevelComplete() {
+  isLevelComplete(): boolean {
     return isBoardCleared(
       this.blocks.map((block) => ({ id: block.data.id, isCleared: block.isCleared })),
     );
   }
 }
-
-export default BoardManager;

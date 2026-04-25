@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
 import importPlugin from 'eslint-plugin-import';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
@@ -10,7 +11,7 @@ const readabilityRules = {
   complexity: ['warn', 10],
   'max-depth': ['warn', 4],
   'max-params': ['warn', 5],
-  'no-magic-numbers': 'off', // handled by config/ convention; too noisy globally
+  'no-magic-numbers': 'off',
 
   // Correctness
   eqeqeq: ['error', 'always'],
@@ -19,14 +20,21 @@ const readabilityRules = {
   'no-implicit-globals': 'error',
   'no-implicit-coercion': 'warn',
   'no-param-reassign': ['error', { props: false }],
-  'no-shadow': 'error',
-  'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+  'no-shadow': 'off',
+  'no-unused-vars': 'off',
   'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
 
-  // Style hygiene that affects readability (compatible with Prettier)
+  // Style hygiene
   'no-nested-ternary': 'error',
   'prefer-template': 'warn',
   'object-shorthand': 'warn',
+};
+
+const tsRules = {
+  '@typescript-eslint/no-shadow': 'error',
+  '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+  '@typescript-eslint/consistent-type-imports': ['warn', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
+  '@typescript-eslint/no-explicit-any': 'warn',
 };
 
 export default [
@@ -34,8 +42,9 @@ export default [
     ignores: ['dist/**', 'node_modules/**', 'tools/**', 'assets/**'],
   },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.{js,mjs}'],
+    files: ['src/**/*.{js,mjs,ts}'],
     plugins: { import: importPlugin },
     languageOptions: {
       ecmaVersion: 2023,
@@ -47,12 +56,12 @@ export default [
     },
     settings: {
       'import/resolver': {
-        node: { extensions: ['.js', '.mjs'] },
-        alias: { map: [['@', './src']], extensions: ['.js', '.mjs'] },
+        node: { extensions: ['.js', '.mjs', '.ts'] },
       },
     },
     rules: {
       ...readabilityRules,
+      ...tsRules,
       'import/no-default-export': 'error',
       'import/order': [
         'warn',
@@ -66,7 +75,7 @@ export default [
   },
   {
     // Pure layer — no Phaser, no DOM, no wall-clock, no global RNG.
-    files: ['src/sim/**/*.{js,mjs}', 'src/config/**/*.{js,mjs}'],
+    files: ['src/sim/**/*.{js,mjs,ts}', 'src/config/**/*.{js,mjs,ts}'],
     rules: {
       'no-restricted-globals': [
         'error',

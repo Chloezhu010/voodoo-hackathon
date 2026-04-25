@@ -1,14 +1,17 @@
 import { CONFIG } from '../config/constants.js';
 
-export default class Funnel {
-  constructor(scene) {
+export class Funnel {
+  readonly scene: Phaser.Scene;
+  readonly graphics: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.graphics = scene.add.graphics();
     this.graphics.setDepth(20);
     this.render();
   }
 
-  render() {
+  render(): void {
     const area = CONFIG.FUNNEL_AREA;
     const topLeft = { x: area.x, y: area.y + 8 };
     const topRight = { x: area.x + area.width, y: area.y + 8 };

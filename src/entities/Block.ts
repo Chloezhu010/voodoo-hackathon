@@ -1,14 +1,44 @@
-import { CONFIG } from '../config/constants.js';
 import { getColorDefinition } from '../config/colors.js';
+import { CONFIG } from '../config/constants.js';
+import type { BlockRecord, ColorId } from '../sim/types.js';
 
-export default class Block {
-  constructor(scene, data, boardSize = { cols: 5, rows: 5 }) {
+export interface BoardSize {
+  cols: number;
+  rows: number;
+}
+
+/**
+ * Structural shape of the host scene that Block reads. Lets entities stay
+ * decoupled from the concrete GameScene class while still being typed.
+ */
+export interface BlockHostScene extends Phaser.Scene {
+  _inputLocked?: boolean;
+  gravityFlip?: { isFlipping?: boolean };
+}
+
+export interface BlockVisualOptions {
+  size?: number;
+  radius?: number;
+  showQuestion?: boolean;
+  covered?: boolean;
+  alpha?: number;
+}
+
+export class Block {
+  readonly scene: BlockHostScene;
+  readonly data: BlockRecord;
+  readonly boardSize: BoardSize;
+  isCovered = false;
+  isCleared = false;
+  private _inputEnabled: boolean | null = null;
+  container: Phaser.GameObjects.Container | null;
+  visualLayer: Phaser.GameObjects.Container | null;
+  hitZone: Phaser.GameObjects.Zone | null;
+
+  constructor(scene: BlockHostScene, data: BlockRecord, boardSize: BoardSize = { cols: 5, rows: 5 }) {
     this.scene = scene;
     this.data = data;
     this.boardSize = boardSize;
-    this.isCovered = false;
-    this.isCleared = false;
-    this._inputEnabled = null;
 
     const position = Block.getBoardPosition(data.col, data.row, boardSize);
     this.container = scene.add.container(position.x, position.y);
@@ -25,7 +55,7 @@ export default class Block {
     this.refreshInteractivity();
   }
 
-  static getBoardPosition(col, row, boardSize = { cols: 5, rows: 5 }) {
+  static getBoardPosition(col: number, row: number, boardSize: BoardSize = { cols: 5, rows: 5 }): { x: number; y: number } {
     const gridWidth = boardSize.cols * CONFIG.BLOCK_SIZE;
     const gridHeight = boardSize.rows * CONFIG.BLOCK_SIZE;
     const startX = CONFIG.BOARD_AREA.x + (CONFIG.BOARD_AREA.width - gridWidth) / 2;
@@ -33,13 +63,13 @@ export default class Block {
 
     return {
       x: startX + col * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2,
-      y: startY + row * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2
+      y: startY + row * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2,
     };
   }
 
-  static createVisual(scene, colorId, options = {}) {
-    const size = options.size || CONFIG.BLOCK_SIZE;
-    const radius = options.radius || Math.round(size * 0.17);
+  static createVisual(scene: Phaser.Scene, colorId: ColorId, options: BlockVisualOptions = {}): Phaser.GameObjects.Container {
+    const size = options.size ?? CONFIG.BLOCK_SIZE;
+    const radius = options.radius ?? Math.round(size * 0.17);
     const colorDef = getColorDefinition(colorId);
     const showQuestion = Boolean(options.showQuestion);
     const isCovered = Boolean(options.covered);
@@ -74,7 +104,7 @@ export default class Block {
       const question = scene.add.text(0, 2, '?', {
         fontSize: `${Math.round(size * 0.56)}px`,
         color: '#ffffff',
-        fontStyle: 'bold'
+        fontStyle: 'bold',
       }).setOrigin(0.5);
       container.add(question);
     }
@@ -82,66 +112,70 @@ export default class Block {
     return container;
   }
 
-  render() {
+  render(): void {
+    if (!this.visualLayer) return;
     this.visualLayer.removeAll(true);
 
-    const showQuestion = this.data.is_hidden && this.isCovered;
+    const showQuestion = Boolean(this.data.is_hidden) && this.isCovered;
     const visual = Block.createVisual(this.scene, this.data.color, {
       showQuestion,
       covered: this.isCovered,
-      size: CONFIG.BLOCK_SIZE
+      size: CONFIG.BLOCK_SIZE,
     });
     this.visualLayer.add(visual);
     this.visualLayer.setAlpha(this.isCovered && !showQuestion ? 0.75 : 1);
   }
 
-  setupInteraction() {
+  setupInteraction(): void {
+    if (!this.hitZone) return;
     this.hitZone.setInteractive({ useHandCursor: true });
     this._bindHitZoneEvents();
   }
 
-  _bindHitZoneEvents() {
-    this.hitZone.off('pointerover');
-    this.hitZone.off('pointerout');
-    this.hitZone.off('pointerdown');
-    this.hitZone.off('pointerup');
-    this.hitZone.on('pointerover', () => {
+  private _bindHitZoneEvents(): void {
+    if (!this.hitZone) return;
+    const hitZone = this.hitZone;
+    hitZone.off('pointerover');
+    hitZone.off('pointerout');
+    hitZone.off('pointerdown');
+    hitZone.off('pointerup');
+    hitZone.on('pointerover', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.tweens.add({
         targets: this.visualLayer,
         scale: 1.08,
         duration: 100,
-        ease: 'Quad.easeOut'
+        ease: 'Quad.easeOut',
       });
     });
 
-    this.hitZone.on('pointerout', () => {
+    hitZone.on('pointerout', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.tweens.add({
         targets: this.visualLayer,
         scale: 1,
         duration: 100,
-        ease: 'Quad.easeOut'
+        ease: 'Quad.easeOut',
       });
     });
 
-    this.hitZone.on('pointerdown', () => {
+    hitZone.on('pointerdown', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.tweens.add({
         targets: this.visualLayer,
         scale: 0.94,
         duration: 70,
-        ease: 'Quad.easeOut'
+        ease: 'Quad.easeOut',
       });
     });
 
-    this.hitZone.on('pointerup', () => {
+    hitZone.on('pointerup', () => {
       if (!this.refreshInteractivity()) return;
       this.scene.events.emit('block-tapped', this);
     });
   }
 
-  setInputEnabled(enabled) {
+  setInputEnabled(enabled: boolean): void {
     if (!this.hitZone) return;
     if (this._inputEnabled === enabled && this.hitZone.input) return;
     this._inputEnabled = enabled;
@@ -161,7 +195,7 @@ export default class Block {
     this.hitZone.setVisible(false);
   }
 
-  refreshInteractivity() {
+  refreshInteractivity(): boolean {
     // 可点击必须同时满足三个守卫：未被遮挡且未清除、GameScene 未输入锁、未来 GravityFlip 未处于翻转中。
     const canInteract = !this.isCovered
       && !this.isCleared
@@ -171,7 +205,7 @@ export default class Block {
     return canInteract;
   }
 
-  setCovered(isCovered) {
+  setCovered(isCovered: boolean): void {
     const wasCovered = this.isCovered;
     this.isCovered = isCovered;
 
@@ -186,26 +220,28 @@ export default class Block {
     this.refreshInteractivity();
   }
 
-  reveal() {
+  reveal(): void {
     this.render();
     this.refreshInteractivity();
-    this.visualLayer.setScale(0.15, 1);
+    this.visualLayer?.setScale(0.15, 1);
     this.scene.tweens.add({
       targets: this.visualLayer,
       scaleX: 1,
       scaleY: 1,
       duration: 260,
-      ease: 'Back.easeOut'
+      ease: 'Back.easeOut',
     });
   }
 
-  shatter() {
+  shatter(): void {
     if (this.isCleared) return;
 
     this.isCleared = true;
     this.refreshInteractivity();
-    this.hitZone.removeInteractive();
-    this.hitZone.setVisible(false);
+    if (this.hitZone) {
+      this.hitZone.removeInteractive();
+      this.hitZone.setVisible(false);
+    }
     this.scene.tweens.add({
       targets: this.visualLayer,
       scale: 0.1,
@@ -214,12 +250,12 @@ export default class Block {
       duration: 180,
       ease: 'Back.easeIn',
       onComplete: () => {
-        this.container.setVisible(false);
-      }
+        this.container?.setVisible(false);
+      },
     });
   }
 
-  destroy() {
+  destroy(): void {
     if (this.hitZone) {
       this.hitZone.removeAllListeners();
       this.hitZone.destroy();

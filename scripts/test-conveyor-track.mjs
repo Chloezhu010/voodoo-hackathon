@@ -1,4 +1,4 @@
-import ConveyorTrack from '../src/systems/ConveyorTrack.js';
+import { ConveyorTrack } from '../src/sim/conveyorTrack.js';
 
 const track = new ConveyorTrack();
 

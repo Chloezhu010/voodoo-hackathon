@@ -7,3 +7,4 @@ export {
   levelPathFor,
   padLevelId,
 } from './levelLoader.js';
+export type * from './types.js';
