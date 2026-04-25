@@ -1,34 +1,31 @@
-export default class BoardManager {
+import { computeCoverage, isBoardCleared } from '../sim/coverage.js';
+
+/**
+ * Phaser-side adapter. Pure coverage logic lives in `src/sim/coverage.js`.
+ * This wrapper translates between Block entities (with render hooks) and the
+ * pure block records the sim layer expects.
+ */
+export class BoardManager {
   constructor(blocks) {
     this.blocks = blocks;
     this.recomputeCoverage();
   }
 
   recomputeCoverage() {
-    const cells = new Map();
-    const coverage = new Map();
+    const records = this.blocks.map((block) => ({
+      id: block.data.id,
+      col: block.data.col,
+      row: block.data.row,
+      z: block.data.z,
+      isCleared: block.isCleared,
+    }));
+    const coverage = computeCoverage(records);
 
-    this.blocks
-      .filter((block) => !block.isCleared)
-      .forEach((block) => {
-        const key = `${block.data.col}:${block.data.row}`;
-        if (!cells.has(key)) cells.set(key, []);
-        cells.get(key).push(block);
-        coverage.set(block, false);
-      });
-
-    cells.forEach((stack) => {
-      const sorted = [...stack].sort((a, b) => b.data.z - a.data.z);
-      sorted.forEach((block, index) => {
-        coverage.set(block, index !== 0);
-      });
-    });
-
-    this.blocks.forEach((block) => {
-      if (!block.isCleared) block.setCovered(Boolean(coverage.get(block)));
-    });
-
-    this.blocks.forEach((block) => block.refreshInteractivity?.());
+    for (const block of this.blocks) {
+      if (block.isCleared) continue;
+      block.setCovered(Boolean(coverage.get(block.data.id)));
+    }
+    for (const block of this.blocks) block.refreshInteractivity?.();
   }
 
   onBlockCleared(block) {
@@ -37,6 +34,10 @@ export default class BoardManager {
   }
 
   isLevelComplete() {
-    return this.blocks.every((block) => block.isCleared);
+    return isBoardCleared(
+      this.blocks.map((block) => ({ id: block.data.id, isCleared: block.isCleared })),
+    );
   }
 }
+
+export default BoardManager;

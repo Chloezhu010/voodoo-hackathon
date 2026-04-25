@@ -3,7 +3,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node scripts/validate.mjs && node scripts/test-conveyor-track.mjs",
-    "test:browser": "node scripts/smoke-browser.mjs"
+    "test": "node scripts/validate.mjs && node scripts/sim-smoke.mjs && node scripts/test-conveyor-track.mjs",
+    "test:browser": "node scripts/smoke-browser.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src scripts",
+    "format": "prettier --write \"src/**/*.{js,mjs,json,css,html}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^17.5.0",
+    "prettier": "^3.8.3",
+    "vite": "^8.0.10"
   }
 }
