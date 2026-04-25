@@ -9,7 +9,7 @@ import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
 const GRID_START = { x: 120, y: 160 } as const;
 const EDITOR_BLOCK_SIZE = 72;
-const QUEUE_OPTIONS = [10, 12, 14, 16, 20] as const;
+const CONVEYOR_SPEED_OPTIONS = [0.12, 0.16, 0.18, 0.22, 0.26] as const;
 
 interface HoverCell {
   col: number;
@@ -68,7 +68,7 @@ export class EditorScene extends Phaser.Scene {
     this._drawHeader();
     this._drawGrid();
     this._drawPalette();
-    this._drawLayerAndTrays();
+    this._drawLayerAndBoxColumns();
     this._drawParams();
     this._drawIO();
   }
@@ -228,7 +228,7 @@ export class EditorScene extends Phaser.Scene {
     ));
   }
 
-  private _drawLayerAndTrays(): void {
+  private _drawLayerAndBoxColumns(): void {
     const y = 815;
     this.root.add(this.add.text(58, y, 'Z-LAYER', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
     this.root.add(this._makeButton(158, y, 46, 44, '▼', UI.PANEL_DARK, () => {
@@ -244,33 +244,48 @@ export class EditorScene extends Phaser.Scene {
     }));
 
     this.root.add(this.add.text(58, y + 42, 'Higher z = on top', { fontSize: '14px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
-    this.root.add(this.add.text(340, y - 34, 'TRAYS', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this.add.text(340, y - 34, 'BOX COLUMNS', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
 
-    COLOR_IDS.forEach((colorId, index) => {
-      const color = getColorDefinition(colorId);
-      const enabled = this.editorState.trays.some((tray) => tray.color === colorId);
-      const x = 370 + index * 48;
-      const circle = this.add.circle(x, y + 8, 18, enabled ? color.hex : 0x000000, enabled ? 1 : 0);
-      circle.setStrokeStyle(4, enabled ? color.hex : 0x77778c, 1);
-      const hit = makeWorldHitZone(this, x, y + 8, 44, 44, () => {
-        this.editorState.toggleTray(colorId);
-        this._persistState();
-        this._renderAll();
+    const columns = this.editorState.toLevelData().box_columns;
+    columns.forEach((column, index) => {
+      const x = 370 + index * 76;
+      const bg = this.add.rectangle(x, y + 18, 56, 74, UI.PANEL_DARK, 0.72);
+      bg.setStrokeStyle(2, 0xffffff, 0.16);
+      this.root.add(bg);
+
+      column.boxes.slice(0, 3).forEach((colorId, boxIndex) => {
+        const color = getColorDefinition(colorId);
+        const box = this.add.rectangle(x, y - 4 + boxIndex * 20, 40, 14, color.hex, 1);
+        const hit = makeWorldHitZone(this, x, y - 4 + boxIndex * 20, 48, 22, () => {
+          this.editorState.cycleBoxColor(index, boxIndex);
+          this._persistState();
+          this._renderAll();
+        });
+        this.root.add([box, hit]);
       });
-      const label = this.add.text(x, y + 42, color.label, { fontSize: '14px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
-      this.root.add([circle, label, hit]);
+      if (column.boxes.length > 3) {
+        this.root.add(this.add.text(x, y + 48, `+${column.boxes.length - 3}`, {
+          fontSize: '14px', color: UI.TEXT, fontStyle: 'bold',
+        }).setOrigin(0.5));
+      }
     });
+
+    this.root.add(this._makeButton(636, y + 18, 64, 44, 'AUTO', UI.PANEL_DARK, () => {
+      this.editorState.syncBoxColumnsToBlocks();
+      this._persistState();
+      this._renderAll();
+    }));
   }
 
   private _drawParams(): void {
     const y = 920;
-    this.root.add(this.add.text(58, y, 'QUEUE', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this.add.text(58, y, 'CONVEYOR', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
 
-    QUEUE_OPTIONS.forEach((value, index) => {
+    CONVEYOR_SPEED_OPTIONS.forEach((value, index) => {
       const x = 148 + index * 58;
-      const active = this.editorState.queueCapacity === value;
-      this.root.add(this._makeButton(x, y, 50, 44, String(value), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
-        this.editorState.setQueueCapacity(value);
+      const active = Math.abs(this.editorState.conveyorSpeed - value) < 0.001;
+      this.root.add(this._makeButton(x, y, 50, 44, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
+        this.editorState.setConveyorSpeed(value);
         this._persistState();
         this._renderAll();
       }));
@@ -432,7 +447,7 @@ export class EditorScene extends Phaser.Scene {
 
   private _showConfirmClear(): void {
     const modal = this._makeModal('Clear All?');
-    modal.add(this.add.text(0, -40, 'Remove all blocks and trays from the editor?', {
+    modal.add(this.add.text(0, -40, 'Remove all blocks from the editor?', {
       fontSize: '24px', color: UI.TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
     }).setOrigin(0.5));
     modal.add(this._makeButton(-120, 125, 190, 62, 'CLEAR', 0x923653, () => {

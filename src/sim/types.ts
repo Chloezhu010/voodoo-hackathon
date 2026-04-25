@@ -37,8 +37,10 @@ export interface LevelData {
   board_size: BoardSize;
   blocks: BlockRecord[];
   box_columns: BoxColumn[];
+  /** Legacy Queue/Tray editor data. Runtime uses box_columns. */
   trays?: TrayConfig[];
   conveyor_speed?: number;
+  /** Legacy Queue/Tray editor data. Runtime uses the conveyor capacity constants. */
   queue_capacity?: number;
   gravity_flip_enabled?: boolean;
   magnet_count?: number;

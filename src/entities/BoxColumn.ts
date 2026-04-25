@@ -1,5 +1,6 @@
 import { getColorDefinition, type ColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
+import { canAcceptTopBoxColor } from '../sim/boxColumnRules.js';
 import type { ColorId } from '../sim/types.js';
 
 import { Box, type ReservedBoxSlot } from './Box.js';
@@ -35,7 +36,13 @@ export class BoxColumn {
   }
 
   canAcceptColor(color: ColorId): boolean {
-    return this.boxes.length > 0 && this.boxes[0]!.canAccept(color);
+    return canAcceptTopBoxColor({
+      boxes: this.boxes.map((box) => ({
+        color: box.color,
+        reservedCount: box.current_count,
+        capacity: box.capacity,
+      })),
+    }, color);
   }
 
   reserveSlotForColor(color: ColorId): ReservedBoxSlot | null {

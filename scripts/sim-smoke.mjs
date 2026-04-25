@@ -20,6 +20,8 @@ const {
   validateLevel,
   levelCacheKey,
   levelPathFor,
+  canAcceptTopBoxColor,
+  reserveTopBoxSlot,
 } = sim;
 
 function ok(message) {
@@ -99,9 +101,68 @@ function ok(message) {
   assert.throws(() => validateLevel(null), /Level data is missing/);
   assert.throws(
     () => validateLevel({ board_size: {}, blocks: [], box_columns: [] }),
+    /board_size cols\/rows/,
+  );
+  assert.throws(
+    () => validateLevel({ board_size: { cols: 1, rows: 1 }, blocks: [], box_columns: [] }),
     /4 box columns/,
   );
+  assert.throws(
+    () => validateLevel({
+      level_id: 1,
+      name: 'bad',
+      difficulty: 0,
+      board_size: { cols: 1, rows: 1 },
+      blocks: [
+        { id: 'dup', col: 0, row: 0, z: 0, color: 'pink' },
+        { id: 'dup', col: 0, row: 0, z: 1, color: 'pink' },
+      ],
+      box_columns: [
+        { col: 0, boxes: ['pink', 'pink', 'pink', 'pink', 'pink', 'pink'] },
+        { col: 1, boxes: [] },
+        { col: 2, boxes: [] },
+        { col: 3, boxes: [] },
+      ],
+    }),
+    /Duplicate block id/,
+  );
+  assert.throws(
+    () => validateLevel({
+      level_id: 1,
+      name: 'bad',
+      difficulty: 0,
+      board_size: { cols: 1, rows: 1 },
+      blocks: [{ id: 'outside', col: 1, row: 0, z: 0, color: 'pink' }],
+      box_columns: [
+        { col: 0, boxes: ['pink', 'pink', 'pink'] },
+        { col: 1, boxes: [] },
+        { col: 2, boxes: [] },
+        { col: 3, boxes: [] },
+      ],
+    }),
+    /outside board/,
+  );
   ok('levelLoader: pure validation accepts shipped level and rejects malformed');
+}
+
+// --- box column rules ------------------------------------------------------
+{
+  const column = {
+    boxes: [
+      { color: 'pink', reservedCount: 2, capacity: 3 },
+      { color: 'blue', reservedCount: 0, capacity: 3 },
+    ],
+  };
+  assert.equal(canAcceptTopBoxColor(column, 'pink'), true, 'top box accepts matching color');
+  assert.equal(canAcceptTopBoxColor(column, 'blue'), false, 'covered lower box rejects until top advances');
+
+  const reserved = reserveTopBoxSlot(column, 'pink');
+  assert.equal(reserved.slotIndex, 2, 'third reservation uses the final slot');
+  assert.equal(reserved.advanced, true, 'full reservation advances the logical top box immediately');
+  assert.equal(reserved.nextColumn.boxes[0].color, 'blue', 'new top box is visible before visual completion');
+  assert.equal(canAcceptTopBoxColor(reserved.nextColumn, 'blue'), true, 'new top controls the next acceptance');
+  assert.equal(reserveTopBoxSlot(reserved.nextColumn, 'pink'), null, 'old top color no longer accepts');
+  ok('boxColumnRules: reservation and top-box advance are deterministic');
 }
 
 console.log('\nheadless sim smoke: PASS');

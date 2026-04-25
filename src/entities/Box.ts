@@ -1,5 +1,6 @@
 import { getColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
+import { canAcceptBoxSlot, reserveBoxSlotIndex } from '../sim/boxColumnRules.js';
 import type { ColorId } from '../sim/types.js';
 
 import type { Marble } from './Marble.js';
@@ -71,12 +72,16 @@ export class Box {
   }
 
   canAccept(color: ColorId): boolean {
-    return this.color === color && this.current_count < this.capacity;
+    return canAcceptBoxSlot({
+      color: this.color,
+      reservedCount: this.current_count,
+      capacity: this.capacity,
+    }, color);
   }
 
   reserveSlot(): ReservedBoxSlot | null {
-    if (this.current_count >= this.capacity) return null;
-    const slotIdx = this.current_count;
+    const slotIdx = reserveBoxSlotIndex(this.current_count, this.capacity);
+    if (slotIdx === null) return null;
     const marker = this.slotMarkers[slotIdx]!;
     this.current_count += 1;
     this.reservedSlots.push(slotIdx);
