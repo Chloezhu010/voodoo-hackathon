@@ -9,6 +9,7 @@ export default class Box {
     this.current_count = 0;
     this.visual_filled = 0;
     this.reservedSlots = [];
+    this.onVisualFull = null;
     this.container = scene.add.container(0, 0);
     this.container.setDepth(90);
     this._render();
@@ -49,9 +50,15 @@ export default class Box {
     this.current_count += 1;
     this.reservedSlots.push(slotIdx);
     return {
+      box: this,
+      slotIndex: slotIdx,
       x: this.container.x + marker.x,
       y: this.container.y + marker.y
     };
+  }
+
+  isReservedFull() {
+    return this.current_count >= this.capacity;
   }
 
   fillVisualSlot(marble) {
@@ -78,7 +85,9 @@ export default class Box {
     });
 
     if (this.visual_filled >= this.capacity) {
-      this.scene.events.emit('box-full', this);
+      const onVisualFull = this.onVisualFull;
+      this.onVisualFull = null;
+      this.destroyWithAnimation(onVisualFull);
     }
   }
 

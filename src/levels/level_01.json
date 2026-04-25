@@ -20,7 +20,7 @@
     { "col": 2, "boxes": ["green", "green", "green", "green", "green", "green", "green", "green", "green"] },
     { "col": 3, "boxes": [] }
   ],
-  "conveyor_speed": 0.12,
+  "conveyor_speed": 0.2,
   "gravity_flip_enabled": false,
   "magnet_count": 0
 }

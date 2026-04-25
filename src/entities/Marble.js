@@ -7,6 +7,7 @@ export default class Marble {
     this.color = color;
     this.state = 'created';
     this.t = -1;
+    this.slotIndex = -1;
     this.sprite = scene.add.graphics();
     this.sprite.setDepth(400);
     this.sprite.fillStyle(getColorDefinition(color).hex, 1);
@@ -43,6 +44,7 @@ export default class Marble {
   destroy() {
     this.state = 'destroyed';
     this.t = -1;
+    this.slotIndex = -1;
     if (this.sprite) {
       this.scene.tweens.killTweensOf(this.sprite);
       this.sprite.destroy();

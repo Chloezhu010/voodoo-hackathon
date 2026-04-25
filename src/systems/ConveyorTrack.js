@@ -51,7 +51,13 @@ export class ConveyorTrack {
   }
 
   get entryT() {
-    return 0;
+    return this.tForUpperLayerX(CONFIG.FUNNEL_AREA.x + CONFIG.FUNNEL_AREA.width / 2);
+  }
+
+  tForUpperLayerX(x) {
+    const ratio = (x - this.leftX) / (this.rightX - this.leftX);
+    const clamped = Math.max(0, Math.min(1, ratio));
+    return clamped * 0.4;
   }
 
   tForLowerLayerX(x) {
