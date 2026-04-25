@@ -1,10 +1,11 @@
-import { CONFIG } from './config/constants.js';
+import { CONFIG, UI } from './config/constants.js';
 import { BootScene } from './scenes/BootScene.js';
 import { EditorScene } from './scenes/EditorScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
+import { colorToCss } from './ui/casualStyle.js';
 
 declare global {
   interface Window {
@@ -17,7 +18,7 @@ const gameConfig: Phaser.Types.Core.GameConfig = {
   width: CONFIG.GAME_WIDTH,
   height: CONFIG.GAME_HEIGHT,
   parent: 'game-container',
-  backgroundColor: '#1a1a2e',
+  backgroundColor: colorToCss(UI.BACKGROUND),
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

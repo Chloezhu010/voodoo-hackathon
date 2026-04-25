@@ -28,7 +28,7 @@
     { "col": 2, "boxes": ["pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink", "blue", "blue", "blue", "blue", "blue", "blue"] },
     { "col": 3, "boxes": ["green", "green", "green", "green", "green", "green", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow"] }
   ],
-  "conveyor_speed": 0.16,
+  "conveyor_speed": 0.24,
   "gravity_flip_enabled": true,
   "magnet_count": 2
 }

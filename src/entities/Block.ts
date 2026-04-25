@@ -74,27 +74,43 @@ export class Block {
     const showQuestion = Boolean(options.showQuestion);
     const isCovered = Boolean(options.covered);
     const alpha = options.alpha ?? 1;
-    const fill = showQuestion ? 0x74748b : colorDef.hex;
+    const fill = showQuestion ? 0xaebbd0 : colorDef.hex;
 
     const container = scene.add.container(0, 0);
     container.setAlpha(alpha);
 
     const g = scene.add.graphics();
+    g.fillStyle(0x2d477a, 0.22);
+    g.fillRoundedRect(-size / 2 + size * 0.06, -size / 2 + size * 0.1, size * 0.92, size * 0.92, radius);
+
+    g.fillStyle(0x000000, 0.16);
+    g.fillRoundedRect(-size / 2, -size / 2 + size * 0.08, size, size, radius);
+
     g.fillStyle(fill, 1);
     g.fillRoundedRect(-size / 2, -size / 2, size, size, radius);
+    g.fillStyle(0xffffff, showQuestion ? 0.24 : 0.32);
+    g.fillRoundedRect(-size / 2 + size * 0.1, -size / 2 + size * 0.08, size * 0.8, size * 0.22, radius * 0.72);
+    g.fillStyle(0x000000, showQuestion ? 0.08 : 0.12);
+    g.fillRoundedRect(-size / 2 + size * 0.06, size * 0.25, size * 0.88, size * 0.2, radius * 0.55);
+    g.lineStyle(Math.max(3, size * 0.045), 0xffffff, 0.38);
+    g.strokeRoundedRect(-size / 2 + 2, -size / 2 + 2, size - 4, size - 4, radius);
+    g.lineStyle(Math.max(3, size * 0.04), 0x29457a, 0.34);
+    g.strokeRoundedRect(-size / 2, -size / 2, size, size, radius);
 
     if (!showQuestion) {
-      g.fillStyle(0xffffff, isCovered ? 0.12 : 0.28);
+      g.fillStyle(0xffffff, isCovered ? 0.1 : 0.25);
       g.fillCircle(0, 0, size * 0.25);
-      g.lineStyle(Math.max(2, size * 0.03), 0x000000, isCovered ? 0.24 : 0.18);
+      g.fillStyle(0xffffff, isCovered ? 0.1 : 0.18);
+      g.fillCircle(-size * 0.09, -size * 0.1, size * 0.08);
+      g.lineStyle(Math.max(2, size * 0.03), 0x23385f, isCovered ? 0.24 : 0.18);
       g.strokeCircle(0, 0, size * 0.25);
     } else {
-      g.fillStyle(0xffffff, 0.08);
+      g.fillStyle(0xffffff, 0.14);
       g.fillCircle(0, 0, size * 0.25);
     }
 
     if (isCovered && !showQuestion) {
-      g.fillStyle(0x000000, 0.35);
+      g.fillStyle(0x2c4778, 0.36);
       g.fillRoundedRect(-size / 2, -size / 2, size, size, radius);
     }
 
@@ -106,6 +122,7 @@ export class Block {
         color: '#ffffff',
         fontStyle: 'bold',
       }).setOrigin(0.5);
+      question.setStroke('#63718a', Math.max(3, size * 0.06));
       container.add(question);
     }
 

@@ -4,6 +4,7 @@ import { Block } from '../entities/Block.js';
 import { EditorState } from '../sim/editorState.js';
 import { validateLevel } from '../sim/levelLoader.js';
 import type { BlockRecord } from '../sim/types.js';
+import { drawSkyBackground } from '../ui/casualStyle.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
 const GRID_START = { x: 120, y: 160 } as const;
@@ -39,7 +40,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawSkyBackground(this);
     this.editorState = new EditorState();
     this.hoverCell = null;
     this.modal = null;
@@ -342,7 +343,9 @@ export class EditorScene extends Phaser.Scene {
     bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 14);
 
     const text = this.add.text(0, 0, label, {
-      fontSize: label.length > 10 ? '18px' : '20px', color: '#ffffff', fontStyle: 'bold',
+      fontSize: label.length > 10 ? '18px' : '20px',
+      color: fillColor === UI.PANEL || fillColor === UI.PANEL_LIGHT ? UI.DARK_TEXT : '#ffffff',
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
     container.add([bg, text]);

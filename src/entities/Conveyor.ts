@@ -1,4 +1,4 @@
-import { CONFIG } from '../config/constants.js';
+import { CONFIG, UI } from '../config/constants.js';
 import { ConveyorTrack } from '../sim/conveyorTrack.js';
 import type { ColorId } from '../sim/types.js';
 
@@ -29,9 +29,11 @@ export class Conveyor {
   private _renderTrack(): void {
     const graphics = this.scene.add.graphics();
     graphics.setDepth(35);
-    this._strokeTrack(graphics, 36, 0x2a2a3e, 1);
-    this._strokeTrack(graphics, 24, 0x34344c, 1);
-    this._strokeTrack(graphics, 2, 0xffffff, 0.16);
+    this._strokeTrack(graphics, 52, UI.BLUE_STROKE, 0.95);
+    this._strokeTrack(graphics, 42, 0xd9e7f6, 1);
+    this._strokeTrack(graphics, 28, 0x8b97ab, 1);
+    this._strokeTrack(graphics, 18, 0x5f687d, 1);
+    this._strokeTrack(graphics, 3, 0xffffff, 0.38);
     this.trackGraphics = graphics;
 
     this.slotGraphics = this.scene.add.graphics();
@@ -42,13 +44,14 @@ export class Conveyor {
   private _strokeTrack(graphics: Phaser.GameObjects.Graphics, width: number, color: number, alpha: number): void {
     graphics.lineStyle(width, color, alpha);
     graphics.beginPath();
-    const first = this.track.positionAt(0);
+    const startT = 0.2;
+    const first = this.track.positionAt(startT);
     graphics.moveTo(first.x, first.y);
     for (let i = 1; i <= 96; i += 1) {
-      const pos = this.track.positionAt(i / 96);
+      const pos = this.track.positionAt(startT + i / 96);
       graphics.lineTo(pos.x, pos.y);
     }
-    graphics.lineTo(first.x, first.y);
+    graphics.closePath();
     graphics.strokePath();
   }
 
@@ -256,10 +259,12 @@ export class Conveyor {
     for (let i = 0; i < this.slotCount; i += 1) {
       const pos = this._slotPosition(i);
       const isUsed = occupied.has(i);
-      this.slotGraphics.fillStyle(isUsed ? 0xffffff : 0x000000, isUsed ? 0.13 : 0.1);
-      this.slotGraphics.fillCircle(pos.x, pos.y, radius);
+      this.slotGraphics.fillStyle(isUsed ? 0xffffff : 0x37445c, isUsed ? 0.18 : 0.7);
+      this.slotGraphics.fillCircle(pos.x, pos.y, radius - 7);
+      this.slotGraphics.fillStyle(0xffffff, isUsed ? 0.22 : 0.16);
+      this.slotGraphics.fillCircle(pos.x - 3, pos.y - 3, radius - 11);
       this.slotGraphics.lineStyle(2, 0xffffff, isUsed ? 0.42 : 0.2);
-      this.slotGraphics.strokeCircle(pos.x, pos.y, radius);
+      this.slotGraphics.strokeCircle(pos.x, pos.y, radius - 7);
     }
   }
 

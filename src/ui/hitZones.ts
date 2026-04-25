@@ -1,5 +1,6 @@
 interface AttachHitZoneOptions {
   useHandCursor?: boolean;
+  depth?: number;
 }
 
 interface WorldHitZoneOptions extends AttachHitZoneOptions {
@@ -17,9 +18,10 @@ export function attachHitZone(
   height: number,
   options: AttachHitZoneOptions = {},
 ): Phaser.GameObjects.Zone {
-  const hitZone = scene.add.zone(0, 0, width, height);
+  const hitZone = scene.add.zone(container.x, container.y, width, height);
   hitZone.setOrigin(0.5);
   hitZone.setInteractive({ useHandCursor: options.useHandCursor !== false });
+  if (Number.isFinite(options.depth)) hitZone.setDepth(options.depth!);
 
   (['pointerover', 'pointerout', 'pointerdown', 'pointerup'] as const).forEach((eventName) => {
     hitZone.on(eventName, (...args: unknown[]) => {
@@ -27,7 +29,9 @@ export function attachHitZone(
     });
   });
 
-  container.add(hitZone);
+  container.once('destroy', () => {
+    if (hitZone.scene) hitZone.destroy();
+  });
   container.hitZone = hitZone;
   return hitZone;
 }
