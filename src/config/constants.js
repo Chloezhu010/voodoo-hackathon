@@ -24,12 +24,12 @@ export const CONFIG = {
   },
 
   CONVEYOR: {
-    AREA: { x: 40, y: 730, width: 640, height: 320 },
+    AREA: { x: 40, y: 760, width: 640, height: 320 },
     SLOTS_PER_LAYER: 12,
     TOTAL_CAPACITY: 24,
     DEFAULT_SPEED: 0.18,
-    UPPER_LAYER_Y_OFFSET: -100,
-    LOWER_LAYER_Y_OFFSET: 100,
+    UPPER_LAYER_Y_OFFSET: -75,
+    LOWER_LAYER_Y_OFFSET: 75,
     CORNER_RADIUS: 50
   },
 

@@ -35,13 +35,14 @@ export default class Conveyor {
   _strokeTrack(graphics, width, color, alpha) {
     graphics.lineStyle(width, color, alpha);
     graphics.beginPath();
-    const first = this.track.positionAt(0);
+    const startT = 0.2;
+    const first = this.track.positionAt(startT);
     graphics.moveTo(first.x, first.y);
     for (let i = 1; i <= 96; i += 1) {
-      const pos = this.track.positionAt(i / 96);
+      const pos = this.track.positionAt(startT + i / 96);
       graphics.lineTo(pos.x, pos.y);
     }
-    graphics.lineTo(first.x, first.y);
+    graphics.closePath();
     graphics.strokePath();
   }
 
