@@ -403,30 +403,42 @@ async function runConveyorBoxEdgeCases(client) {
 
   await setCustomLevel(client, {
     level_id: 99,
-    name: 'Overflow',
+    name: 'Deadlocked Conveyor',
     difficulty: 0,
     board_size: { cols: 5, rows: 5 },
     blocks: [
       { id: 'b0', col: 0, row: 0, z: 0, color: 'blue', is_hidden: false },
-      { id: 'b1', col: 1, row: 0, z: 0, color: 'blue', is_hidden: false },
-      { id: 'b2', col: 2, row: 0, z: 0, color: 'blue', is_hidden: false },
-      { id: 'b3', col: 3, row: 0, z: 0, color: 'blue', is_hidden: false },
-      { id: 'b4', col: 4, row: 0, z: 0, color: 'blue', is_hidden: false }
+      { id: 'y0', col: 4, row: 0, z: 0, color: 'yellow', is_hidden: false }
     ],
-    box_columns: makeColumns({ 0: Array(15).fill('blue') }),
-    conveyor_speed: 0.01,
+    box_columns: makeColumns({ 0: ['yellow', 'yellow', 'yellow', 'blue', 'blue', 'blue'] }),
+    conveyor_speed: 0.5,
     gravity_flip_enabled: false,
     magnet_count: 0
   });
   await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
-    s.blocks.slice(0, 4).forEach((block) => s._onBlockTapped(block));
+    const fake = (slotIndex) => ({
+      color: 'blue',
+      slotIndex,
+      t: s.conveyor._slotT(slotIndex),
+      state: 'on-conveyor',
+      sprite: { x: 0, y: 0 },
+      setPositionDirect(x, y) { this.sprite.x = x; this.sprite.y = y; },
+      flyTo(_x, _y, _duration, _ease, onComplete) { if (onComplete) onComplete(); },
+      destroy() { this.state = 'destroyed'; }
+    });
+    s.conveyor._reservedSlots.clear();
+    s.conveyor.marbles = Array.from(
+      { length: s.conveyor.slotCount },
+      (_value, slotIndex) => fake(slotIndex)
+    );
+    s.conveyor.update(16);
     return true;
   })()`);
-  await waitFor(client, `window.marbleSortGame.scene.getScene('GameScene')._inputLocked === true`, 9000);
+  await waitFor(client, `window.marbleSortGame.scene.getScene('GameScene')._inputLocked === true`, 3000);
   const overflow = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
-    const target = s.blocks.find((block) => block.data.id === 'b4');
+    const target = s.blocks.find((block) => block.data.id === 'y0');
     return {
       inputLocked: s._inputLocked,
       overflowFired: s.conveyor._overflowFired,
@@ -437,7 +449,7 @@ async function runConveyorBoxEdgeCases(client) {
   if (!overflow.inputLocked || !overflow.overflowFired || overflow.targetEnabled) {
     throw new Error(`Scenario 5 overflow failed: ${JSON.stringify(overflow)}`);
   }
-  console.log('ok - 02c scenario 5 conveyor overflow locks input once');
+  console.log('ok - 02c scenario 5 deadlocked full conveyor locks input once');
 
   await restartGameScene(client, 2, { blocks: 12 });
   const reveal = await evaluate(client, `(() => {
@@ -525,11 +537,12 @@ async function runConveyorBoxEdgeCases(client) {
       magnetized,
       conveyorCount: s.conveyor.count(),
       boxCountAfterMagnet,
-      fourthSlot: slots[3],
+      fourthSlotAccepted: Boolean(slots[3]),
+      nextBoxCount: s.boxColumns[0].boxes[0]?.current_count || 0,
       uniqueSlots: new Set(slots.slice(0, 3).map((slot) => slot && (slot.x + ':' + slot.y))).size
     };
   })()`);
-  if (!direct.advanced || direct.magnetized !== 2 || direct.conveyorCount !== 0 || direct.boxCountAfterMagnet !== 2 || direct.fourthSlot !== null || direct.uniqueSlots !== 3) {
+  if (!direct.advanced || direct.magnetized !== 2 || direct.conveyorCount !== 0 || direct.boxCountAfterMagnet !== 2 || !direct.fourthSlotAccepted || direct.nextBoxCount !== 1 || direct.uniqueSlots !== 3) {
     throw new Error(`Scenarios 7/8/9 direct mechanics failed: ${JSON.stringify(direct)}`);
   }
   console.log('ok - 02c scenarios 7, 8, 9 magnetize, pause, and slot reserve work');
@@ -564,6 +577,17 @@ async function runBrowserChecks(client) {
   await waitForGameSceneCreated(client, 2, beforeLevelCardGeneration, { blocks: 12 });
   console.log('ok - level card hit zone starts conveyor level');
 
+  await waitFor(client, `(() => {
+    const gameScene = window.marbleSortGame.scene.getScene('GameScene');
+    const hitZone = gameScene.children.list.find((child) => (
+      child.type === 'Zone'
+      && child.x === 48
+      && child.y === 48
+      && child.width === 80
+      && child.height === 80
+    ));
+    return hitZone?.input?.enabled === true && hitZone.listenerCount('pointerup') > 0;
+  })()`);
   await clickGame(client, 48, 48);
   await waitFor(client, `window.marbleSortGame.scene.getScene('LevelSelectScene').scene.isActive()`);
   console.log('ok - game back hit zone returns to level select');
