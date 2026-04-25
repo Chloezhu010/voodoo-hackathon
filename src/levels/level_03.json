@@ -1,0 +1,36 @@
+{
+  "level_id": 3,
+  "name": "Gravity Flip",
+  "difficulty": 3,
+  "board_size": { "cols": 5, "rows": 5 },
+  "blocks": [
+    { "id": "p1", "col": 0, "row": 0, "z": 1, "color": "purple", "is_hidden": false },
+    { "id": "p2", "col": 4, "row": 0, "z": 1, "color": "purple", "is_hidden": false },
+    { "id": "p3", "col": 0, "row": 4, "z": 1, "color": "purple", "is_hidden": false },
+    { "id": "p4", "col": 4, "row": 4, "z": 1, "color": "purple", "is_hidden": false },
+    { "id": "h1", "col": 0, "row": 0, "z": 0, "color": "orange", "is_hidden": true },
+    { "id": "h2", "col": 4, "row": 0, "z": 0, "color": "orange", "is_hidden": true },
+    { "id": "h3", "col": 0, "row": 4, "z": 0, "color": "orange", "is_hidden": true },
+    { "id": "h4", "col": 4, "row": 4, "z": 0, "color": "orange", "is_hidden": true },
+    { "id": "c1", "col": 2, "row": 2, "z": 1, "color": "pink", "is_hidden": false },
+    { "id": "c2", "col": 1, "row": 2, "z": 0, "color": "blue", "is_hidden": false },
+    { "id": "c3", "col": 3, "row": 2, "z": 0, "color": "blue", "is_hidden": false },
+    { "id": "c4", "col": 2, "row": 1, "z": 0, "color": "green", "is_hidden": false },
+    { "id": "c5", "col": 2, "row": 3, "z": 0, "color": "green", "is_hidden": false },
+    { "id": "e1", "col": 1, "row": 1, "z": 0, "color": "yellow", "is_hidden": false },
+    { "id": "e2", "col": 3, "row": 1, "z": 0, "color": "yellow", "is_hidden": false },
+    { "id": "e3", "col": 1, "row": 3, "z": 0, "color": "pink", "is_hidden": false },
+    { "id": "e4", "col": 3, "row": 3, "z": 0, "color": "pink", "is_hidden": false }
+  ],
+  "trays": [
+    { "color": "pink", "capacity": 6 },
+    { "color": "blue", "capacity": 6 },
+    { "color": "green", "capacity": 6 },
+    { "color": "yellow", "capacity": 6 },
+    { "color": "purple", "capacity": 6 },
+    { "color": "orange", "capacity": 6 }
+  ],
+  "queue_capacity": 12,
+  "gravity_flip_enabled": true,
+  "magnet_count": 2
+}

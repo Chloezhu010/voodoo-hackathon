@@ -1,0 +1,21 @@
+{
+  "level_id": 0,
+  "name": "Test",
+  "board_size": { "cols": 5, "rows": 5 },
+  "blocks": [
+    { "id": "b1", "col": 1, "row": 1, "z": 0, "color": "pink", "is_hidden": false },
+    { "id": "b2", "col": 2, "row": 1, "z": 0, "color": "pink", "is_hidden": false },
+    { "id": "b3", "col": 3, "row": 1, "z": 0, "color": "blue", "is_hidden": false },
+    { "id": "b4", "col": 1, "row": 2, "z": 0, "color": "blue", "is_hidden": false },
+    { "id": "b5", "col": 2, "row": 2, "z": 0, "color": "green", "is_hidden": false },
+    { "id": "b6", "col": 3, "row": 2, "z": 0, "color": "green", "is_hidden": false }
+  ],
+  "trays": [
+    { "color": "pink", "capacity": 6 },
+    { "color": "blue", "capacity": 6 },
+    { "color": "green", "capacity": 6 }
+  ],
+  "queue_capacity": 12,
+  "gravity_flip_enabled": false,
+  "magnet_count": 0
+}

@@ -1,0 +1,656 @@
+import { CONFIG, UI } from '../config/constants.js';
+import { COLORS, COLOR_IDS, getColorDefinition } from '../config/colors.js';
+import Block from '../entities/Block.js';
+import EditorState from '../systems/EditorState.js';
+import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
+
+const GRID_START = { x: 120, y: 160 };
+const EDITOR_BLOCK_SIZE = 72;
+const QUEUE_OPTIONS = [10, 12, 14, 16, 20];
+
+export default class EditorScene extends Phaser.Scene {
+  constructor() {
+    super('EditorScene');
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    this.editorState = new EditorState();
+    this.hoverCell = null;
+    this.modal = null;
+    this.activeTextInput = null;
+
+    if (window._editorStateSnapshot) {
+      try {
+        this.editorState.importJSON(window._editorStateSnapshot);
+      } catch (error) {
+        console.warn('Could not restore editor state:', error);
+      }
+    }
+
+    this.input.keyboard.on('keydown', this._handleTextInput, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.keyboard.off('keydown', this._handleTextInput, this);
+    });
+
+    this._renderAll();
+  }
+
+  _renderAll() {
+    if (this.root) this.root.destroy(true);
+    this.root = this.add.container(0, 0);
+    this._drawHeader();
+    this._drawGrid();
+    this._drawPalette();
+    this._drawLayerAndTrays();
+    this._drawParams();
+    this._drawIO();
+  }
+
+  _drawHeader() {
+    this.root.add(this._makeButton(92, 48, 150, 54, '← MENU', UI.PANEL_DARK, () => {
+      this.scene.start('MenuScene');
+    }));
+
+    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 48, 'LEVEL EDITOR', {
+      fontSize: '34px',
+      color: UI.TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0.5));
+
+    this.root.add(this._makeButton(594, 48, 190, 54, 'PLAY TEST', UI.PRIMARY, () => {
+      this._playTest();
+    }));
+  }
+
+  _drawGrid() {
+    const size = CONFIG.BLOCK_SIZE;
+    const width = this.editorState.gridCols * size;
+    const height = this.editorState.gridRows * size;
+    const layer = this.add.container(0, 0);
+    this.root.add(layer);
+
+    const panel = this.add.graphics();
+    panel.fillStyle(UI.PANEL_DARK, 1);
+    panel.fillRoundedRect(GRID_START.x - 16, GRID_START.y - 16, width + 32, height + 32, 22);
+    panel.lineStyle(3, 0xffffff, 0.1);
+    panel.strokeRoundedRect(GRID_START.x - 16, GRID_START.y - 16, width + 32, height + 32, 22);
+    panel.lineStyle(2, 0x3a3a55, 1);
+
+    for (let col = 0; col <= this.editorState.gridCols; col += 1) {
+      const x = GRID_START.x + col * size;
+      panel.lineBetween(x, GRID_START.y, x, GRID_START.y + height);
+    }
+
+    for (let row = 0; row <= this.editorState.gridRows; row += 1) {
+      const y = GRID_START.y + row * size;
+      panel.lineBetween(GRID_START.x, y, GRID_START.x + width, y);
+    }
+
+    layer.add(panel);
+
+    const stacks = this._getStacks();
+    stacks.forEach((stack, key) => {
+      const [col, row] = key.split(':').map(Number);
+      const top = stack[0];
+      const center = this._gridCenter(col, row);
+      const visual = Block.createVisual(this, top.color, {
+        size: EDITOR_BLOCK_SIZE,
+        showQuestion: top.is_hidden
+      });
+      visual.setPosition(center.x, center.y);
+      layer.add(visual);
+
+      const zBadge = this.add.text(center.x - 35, center.y - 35, `z${top.z}`, {
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0, 0);
+      layer.add(zBadge);
+
+      if (stack.length > 1) {
+        const badgeBg = this.add.circle(center.x + 32, center.y + 32, 18, 0x000000, 0.72);
+        const badgeText = this.add.text(center.x + 32, center.y + 32, `+${stack.length - 1}`, {
+          fontSize: '18px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+        layer.add([badgeBg, badgeText]);
+      }
+    });
+
+    if (this.hoverCell) {
+      const center = this._gridCenter(this.hoverCell.col, this.hoverCell.row);
+      if (this.editorState.eraseMode) {
+        const erase = this.add.graphics();
+        erase.lineStyle(5, 0xff4d6d, 0.85);
+        erase.strokeRoundedRect(
+          center.x - EDITOR_BLOCK_SIZE / 2,
+          center.y - EDITOR_BLOCK_SIZE / 2,
+          EDITOR_BLOCK_SIZE,
+          EDITOR_BLOCK_SIZE,
+          14
+        );
+        layer.add(erase);
+      } else {
+        const ghost = Block.createVisual(this, this.editorState.activeColor, {
+          size: EDITOR_BLOCK_SIZE,
+          showQuestion: this.editorState.activeIsHidden,
+          alpha: 0.45
+        });
+        ghost.setPosition(center.x, center.y);
+        layer.add(ghost);
+      }
+    }
+
+    for (let row = 0; row < this.editorState.gridRows; row += 1) {
+      for (let col = 0; col < this.editorState.gridCols; col += 1) {
+        const center = this._gridCenter(col, row);
+        const hit = this.add.rectangle(center.x, center.y, size, size, 0xffffff, 0.001);
+        hit.setInteractive({ useHandCursor: true });
+        hit.on('pointerover', () => {
+          this.hoverCell = { col, row };
+          this._renderAll();
+        });
+        hit.on('pointerout', () => {
+          if (this.hoverCell?.col === col && this.hoverCell?.row === row) {
+            this.hoverCell = null;
+            this._renderAll();
+          }
+        });
+        hit.on('pointerdown', () => {
+          this.editorState.placeBlock(col, row);
+          this._persistState();
+          this._renderAll();
+        });
+        layer.add(hit);
+      }
+    }
+  }
+
+  _drawPalette() {
+    const y = 720;
+    const buttonSize = 64;
+    const gap = 8;
+    const total = COLOR_IDS.length + 2;
+    const startX = (CONFIG.GAME_WIDTH - total * buttonSize - (total - 1) * gap) / 2 + buttonSize / 2;
+
+    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 670, 'COLOR PALETTE', {
+      fontSize: '20px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0.5));
+
+    COLOR_IDS.forEach((colorId, index) => {
+      const x = startX + index * (buttonSize + gap);
+      const color = getColorDefinition(colorId);
+      const active = this.editorState.activeColor === colorId && !this.editorState.eraseMode;
+      const button = this._makeSquareSwatch(
+        x,
+        y,
+        buttonSize,
+        color.hex,
+        color.label,
+        active,
+        () => {
+          this.editorState.activeColor = colorId;
+          this.editorState.eraseMode = false;
+          this._persistState();
+          this._renderAll();
+        }
+      );
+      this.root.add(button);
+    });
+
+    const hiddenX = startX + COLOR_IDS.length * (buttonSize + gap);
+    this.root.add(this._makeSquareSwatch(
+      hiddenX,
+      y,
+      buttonSize,
+      UI.PANEL,
+      '?',
+      this.editorState.activeIsHidden,
+      () => {
+        this.editorState.activeIsHidden = !this.editorState.activeIsHidden;
+        this._persistState();
+        this._renderAll();
+      }
+    ));
+
+    const eraseX = hiddenX + buttonSize + gap;
+    this.root.add(this._makeSquareSwatch(
+      eraseX,
+      y,
+      buttonSize,
+      this.editorState.eraseMode ? 0xff4d6d : UI.PANEL,
+      'DEL',
+      this.editorState.eraseMode,
+      () => {
+        this.editorState.eraseMode = !this.editorState.eraseMode;
+        this._persistState();
+        this._renderAll();
+      }
+    ));
+  }
+
+  _drawLayerAndTrays() {
+    const y = 815;
+    this.root.add(this.add.text(58, y, 'Z-LAYER', {
+      fontSize: '18px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5));
+
+    this.root.add(this._makeButton(158, y, 46, 44, '▼', UI.PANEL_DARK, () => {
+      this.editorState.setActiveZ(this.editorState.activeZ - 1);
+      this._persistState();
+      this._renderAll();
+    }));
+    this.root.add(this.add.text(210, y, `z=${this.editorState.activeZ}`, {
+      fontSize: '22px',
+      color: UI.TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0.5));
+    this.root.add(this._makeButton(262, y, 46, 44, '▲', UI.PANEL_DARK, () => {
+      this.editorState.setActiveZ(this.editorState.activeZ + 1);
+      this._persistState();
+      this._renderAll();
+    }));
+
+    this.root.add(this.add.text(58, y + 42, 'Higher z = on top', {
+      fontSize: '14px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5));
+
+    this.root.add(this.add.text(340, y - 34, 'TRAYS', {
+      fontSize: '18px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5));
+
+    COLOR_IDS.forEach((colorId, index) => {
+      const color = getColorDefinition(colorId);
+      const enabled = this.editorState.trays.some((tray) => tray.color === colorId);
+      const x = 370 + index * 48;
+      const circle = this.add.circle(x, y + 8, 18, enabled ? color.hex : 0x000000, enabled ? 1 : 0);
+      circle.setStrokeStyle(4, enabled ? color.hex : 0x77778c, 1);
+      const hit = makeWorldHitZone(this, x, y + 8, 44, 44, () => {
+        this.editorState.toggleTray(colorId);
+        this._persistState();
+        this._renderAll();
+      });
+
+      const label = this.add.text(x, y + 42, color.label, {
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      this.root.add([circle, label, hit]);
+    });
+  }
+
+  _drawParams() {
+    const y = 920;
+    this.root.add(this.add.text(58, y, 'QUEUE', {
+      fontSize: '18px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5));
+
+    QUEUE_OPTIONS.forEach((value, index) => {
+      const x = 148 + index * 58;
+      const active = this.editorState.queueCapacity === value;
+      this.root.add(this._makeButton(x, y, 50, 44, String(value), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
+        this.editorState.setQueueCapacity(value);
+        this._persistState();
+        this._renderAll();
+      }));
+    });
+
+    const checkX = 455;
+    const box = this.add.rectangle(checkX, y, 30, 30, this.editorState.gravityFlipEnabled ? UI.PRIMARY : UI.PANEL_DARK, 1);
+    box.setStrokeStyle(3, 0xffffff, 0.5);
+    const boxHit = makeWorldHitZone(this, checkX, y, 50, 50, () => {
+      this.editorState.gravityFlipEnabled = !this.editorState.gravityFlipEnabled;
+      this._persistState();
+      this._renderAll();
+    });
+    this.root.add([box, boxHit]);
+    this.root.add(this.add.text(checkX + 26, y, 'GRAV FLIP', {
+      fontSize: '18px',
+      color: UI.TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5));
+
+    this.root.add(this.add.text(58, y + 72, 'MAGNET', {
+      fontSize: '18px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5));
+    this.root.add(this._makeButton(160, y + 72, 46, 42, '-', UI.PANEL_DARK, () => {
+      this.editorState.setMagnetCount(this.editorState.magnetCount - 1);
+      this._persistState();
+      this._renderAll();
+    }));
+    this.root.add(this.add.text(215, y + 72, String(this.editorState.magnetCount), {
+      fontSize: '24px',
+      color: UI.TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0.5));
+    this.root.add(this._makeButton(270, y + 72, 46, 42, '+', UI.PANEL_DARK, () => {
+      this.editorState.setMagnetCount(this.editorState.magnetCount + 1);
+      this._persistState();
+      this._renderAll();
+    }));
+  }
+
+  _drawIO() {
+    const y = 1080;
+    this.root.add(this._makeButton(155, y, 190, 62, 'EXPORT JSON', UI.PANEL_DARK, () => {
+      this._showExportModal();
+    }));
+    this.root.add(this._makeButton(360, y, 190, 62, 'IMPORT JSON', UI.PANEL_DARK, () => {
+      this._showImportModal();
+    }));
+    this.root.add(this._makeButton(565, y, 190, 62, 'CLEAR ALL', 0x923653, () => {
+      this._showConfirmClear();
+    }));
+
+    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 1165, 'Exported JSON can be loaded directly by GameScene.', {
+      fontSize: '17px',
+      color: UI.MUTED_TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0.5));
+  }
+
+  _makeSquareSwatch(x, y, size, fillColor, label, active, onClick) {
+    const container = this.add.container(x, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(fillColor, 1);
+    bg.fillRoundedRect(-size / 2, -size / 2, size, size, 12);
+    bg.lineStyle(active ? 4 : 2, 0xffffff, active ? 1 : 0.18);
+    bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 12);
+
+    const text = this.add.text(0, 0, label, {
+      fontSize: label.length > 1 ? '16px' : '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    container.add([bg, text]);
+    container.setSize(size, size);
+    attachHitZone(this, container, size, size);
+    container.on('pointerdown', onClick);
+    return container;
+  }
+
+  _makeButton(x, y, width, height, label, fillColor, onClick) {
+    const container = this.add.container(x, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(fillColor, 1);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 14);
+    bg.lineStyle(2, 0xffffff, 0.16);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 14);
+
+    const text = this.add.text(0, 0, label, {
+      fontSize: label.length > 10 ? '18px' : '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    container.add([bg, text]);
+    container.setSize(width, height);
+    attachHitZone(this, container, width, height);
+    container.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.04, duration: 90 }));
+    container.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, duration: 90 }));
+    container.on('pointerdown', () => {
+      this.tweens.add({ targets: container, scale: 0.96, duration: 60 });
+      if (onClick) onClick();
+    });
+
+    return container;
+  }
+
+  _showExportModal() {
+    const json = this.editorState.exportJSON();
+    const modal = this._makeModal('Exported JSON');
+    const display = json.length > 2600 ? `${json.slice(0, 2600)}\n...` : json;
+    const text = this.add.text(-270, -275, display, {
+      fontSize: '13px',
+      color: '#a0ffa0',
+      fontStyle: 'bold',
+      wordWrap: { width: 540 }
+    }).setOrigin(0, 0);
+    modal.add(text);
+
+    modal.add(this._makeButton(-115, 336, 190, 58, 'COPY', UI.PRIMARY, async () => {
+      try {
+        await navigator.clipboard.writeText(json);
+        this._showToast('Copied JSON');
+      } catch (error) {
+        this._showToast('Clipboard unavailable');
+      }
+    }));
+
+    modal.add(this._makeButton(115, 336, 190, 58, 'CLOSE', UI.PANEL_DARK, () => {
+      this._closeModal();
+    }));
+  }
+
+  _showImportModal() {
+    const modal = this._makeModal('Import JSON');
+    const inputBg = this.add.rectangle(0, -40, 540, 520, 0x151522, 1);
+    inputBg.setStrokeStyle(2, 0xffffff, 0.14);
+    modal.add(inputBg);
+
+    const inputText = this.add.text(-255, -285, 'Paste or type JSON here', {
+      fontSize: '13px',
+      color: '#8f8fa8',
+      fontStyle: 'bold',
+      wordWrap: { width: 510 }
+    }).setOrigin(0, 0);
+    modal.add(inputText);
+
+    const errorText = this.add.text(0, 244, '', {
+      fontSize: '15px',
+      color: '#ff9a9a',
+      fontStyle: 'bold',
+      align: 'center',
+      wordWrap: { width: 520 }
+    }).setOrigin(0.5);
+    modal.add(errorText);
+
+    const inputState = { value: '', text: inputText, errorText };
+    inputBg.setInteractive({ useHandCursor: true });
+    inputBg.on('pointerdown', () => {
+      this.activeTextInput = inputState;
+      this._refreshInputText();
+    });
+
+    this.activeTextInput = inputState;
+
+    modal.add(this._makeButton(-205, 336, 150, 58, 'PASTE', UI.PANEL_DARK, async () => {
+      try {
+        this.activeTextInput.value = await navigator.clipboard.readText();
+        this._refreshInputText();
+      } catch (error) {
+        errorText.setText('Clipboard read failed.');
+      }
+    }));
+
+    modal.add(this._makeButton(0, 336, 150, 58, 'LOAD', UI.PRIMARY, () => {
+      try {
+        this.editorState.importJSON(this.activeTextInput.value);
+        this._persistState();
+        this._closeModal();
+        this._renderAll();
+        this._showToast('Imported JSON');
+      } catch (error) {
+        errorText.setText(error.message);
+      }
+    }));
+
+    modal.add(this._makeButton(205, 336, 150, 58, 'CLOSE', UI.PANEL_DARK, () => {
+      this._closeModal();
+    }));
+  }
+
+  _showConfirmClear() {
+    const modal = this._makeModal('Clear All?');
+    modal.add(this.add.text(0, -40, 'Remove all blocks and trays from the editor?', {
+      fontSize: '24px',
+      color: UI.TEXT,
+      fontStyle: 'bold',
+      align: 'center',
+      wordWrap: { width: 480 }
+    }).setOrigin(0.5));
+
+    modal.add(this._makeButton(-120, 125, 190, 62, 'CLEAR', 0x923653, () => {
+      this.editorState.clear();
+      this._persistState();
+      this._closeModal();
+      this._renderAll();
+    }));
+
+    modal.add(this._makeButton(120, 125, 190, 62, 'CANCEL', UI.PANEL_DARK, () => {
+      this._closeModal();
+    }));
+  }
+
+  _makeModal(title) {
+    this._closeModal();
+    const modal = this.add.container(CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2);
+    modal.setDepth(2000);
+
+    const overlay = this.add.rectangle(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT, 0x000000, 0.72);
+    overlay.setInteractive();
+    modal.add(overlay);
+
+    const panel = this.add.rectangle(0, 0, 600, 820, UI.PANEL, 1);
+    panel.setStrokeStyle(3, 0xffffff, 0.18);
+    modal.add(panel);
+
+    modal.add(this.add.text(0, -365, title, {
+      fontSize: '32px',
+      color: UI.TEXT,
+      fontStyle: 'bold'
+    }).setOrigin(0.5));
+
+    this.modal = modal;
+    return modal;
+  }
+
+  _closeModal() {
+    this.activeTextInput = null;
+    if (this.modal) {
+      this.modal.destroy(true);
+      this.modal = null;
+    }
+  }
+
+  _handleTextInput(event) {
+    if (!this.activeTextInput) return;
+    event.preventDefault();
+
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v') return;
+    if (event.key === 'Backspace') {
+      this.activeTextInput.value = this.activeTextInput.value.slice(0, -1);
+    } else if (event.key === 'Enter') {
+      this.activeTextInput.value += '\n';
+    } else if (event.key === 'Tab') {
+      this.activeTextInput.value += '  ';
+    } else if (event.key.length === 1) {
+      this.activeTextInput.value += event.key;
+    }
+
+    this._refreshInputText();
+  }
+
+  _refreshInputText() {
+    if (!this.activeTextInput) return;
+    const value = this.activeTextInput.value;
+    const display = value.length > 2600 ? `${value.slice(0, 2600)}\n...` : value;
+    this.activeTextInput.text.setText(display || 'Paste or type JSON here');
+    this.activeTextInput.text.setColor(value ? '#a0ffa0' : '#8f8fa8');
+    this.activeTextInput.errorText?.setText('');
+  }
+
+  _playTest() {
+    const error = this._validateForPlayTest();
+    if (error) {
+      this._showToast(error);
+      return;
+    }
+
+    const json = this.editorState.exportJSON();
+    window._customLevelData = JSON.parse(json);
+    window._editorStateSnapshot = json;
+    this.scene.start('GameScene', { levelId: 99, fromEditor: true });
+  }
+
+  _validateForPlayTest() {
+    if (this.editorState.blocks.length === 0) return 'Place at least one block.';
+    if (this.editorState.trays.length === 0) return 'Add at least one tray.';
+
+    const blockColors = new Set(this.editorState.blocks.map((block) => block.color));
+    const trayColors = new Set(this.editorState.trays.map((tray) => tray.color));
+
+    for (const color of blockColors) {
+      if (!trayColors.has(color)) return `Color ${color} has no tray.`;
+    }
+
+    for (const color of trayColors) {
+      if (!blockColors.has(color)) return `Tray ${color} has no block.`;
+    }
+
+    return null;
+  }
+
+  _showToast(message) {
+    const toast = this.add.container(CONFIG.GAME_WIDTH / 2, 1220);
+    toast.setDepth(3000);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.78);
+    bg.fillRoundedRect(-250, -34, 500, 68, 16);
+    const text = this.add.text(0, 0, message, {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      align: 'center',
+      wordWrap: { width: 460 }
+    }).setOrigin(0.5);
+    toast.add([bg, text]);
+    this.time.delayedCall(1600, () => {
+      this.tweens.add({
+        targets: toast,
+        alpha: 0,
+        y: toast.y - 14,
+        duration: 240,
+        onComplete: () => toast.destroy()
+      });
+    });
+  }
+
+  _gridCenter(col, row) {
+    return {
+      x: GRID_START.x + col * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2,
+      y: GRID_START.y + row * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2
+    };
+  }
+
+  _getStacks() {
+    const stacks = new Map();
+    this.editorState.blocks.forEach((block) => {
+      const key = `${block.col}:${block.row}`;
+      if (!stacks.has(key)) stacks.set(key, []);
+      stacks.get(key).push(block);
+    });
+    stacks.forEach((stack) => stack.sort((a, b) => b.z - a.z));
+    return stacks;
+  }
+
+  _persistState() {
+    window._editorStateSnapshot = this.editorState.exportJSON();
+  }
+}

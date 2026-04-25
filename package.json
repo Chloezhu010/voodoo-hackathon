@@ -1,0 +1,9 @@
+{
+  "name": "marble-sort",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/validate.mjs",
+    "test:browser": "node scripts/smoke-browser.mjs"
+  }
+}
