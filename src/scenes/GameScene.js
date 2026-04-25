@@ -1,9 +1,10 @@
 import { CONFIG, UI } from '../config/constants.js';
 import Block from '../entities/Block.js';
+import BoxColumn from '../entities/BoxColumn.js';
+import Conveyor from '../entities/Conveyor.js';
 import Funnel from '../entities/Funnel.js';
 import Marble from '../entities/Marble.js';
-import Queue from '../entities/Queue.js';
-import Tray from '../entities/Tray.js';
+import OutputPort from '../entities/OutputPort.js';
 import BoardManager from '../systems/BoardManager.js';
 import LevelLoader from '../systems/LevelLoader.js';
 import { makeWorldHitZone } from '../ui/hitZones.js';
@@ -21,6 +22,7 @@ export default class GameScene extends Phaser.Scene {
     this.isEnding = false;
     this._debugEnabled = false;
     this._debugText = null;
+    this.marbles = [];
   }
 
   preload() {
@@ -47,16 +49,27 @@ export default class GameScene extends Phaser.Scene {
     this._drawHUD();
 
     this.funnel = new Funnel(this);
-    this.trays = this._createTrays(this.levelData.trays);
-    this.queue = new Queue(this, this.levelData.queue_capacity, this.trays);
+    this.conveyor = new Conveyor(
+      this,
+      this.levelData.conveyor_speed || CONFIG.CONVEYOR.DEFAULT_SPEED
+    );
+    this.boxColumns = this._createBoxColumns(this.levelData.box_columns);
+    this.outputPorts = this.boxColumns.map((boxColumn, index) => {
+      const port = new OutputPort(this, this.conveyor.track, index, boxColumn);
+      this.conveyor.registerOutputPort(port);
+      boxColumn.outputPort = port;
+      return port;
+    });
+
     this.blocks = this.levelData.blocks.map((blockData) => (
       new Block(this, blockData, this.levelData.board_size)
     ));
     this.boardManager = new BoardManager(this.blocks);
 
     this.events.on('block-tapped', this._onBlockTapped, this);
-    this.events.on('queue-overflow', this._onQueueOverflow, this);
-    this.events.on('tray-completed', this._onTrayCompleted, this);
+    this.events.on('conveyor-overflow', this._onConveyorOverflow, this);
+    this.events.on('box-full', this._onBoxFull, this);
+    this.events.on('column-cleared', this._onColumnCleared, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._shutdown, this);
     this.input.keyboard.on('keydown-D', this._toggleDebugOverlay, this);
 
@@ -64,16 +77,21 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.levelId === 1 && !this.fromEditor) {
       this._showToast(
-        'Tap blocks to send marbles to the queue. Match colors with the trays below!',
+        'Tap blocks to feed the conveyor. Boxes only accept their top color.',
         3000
       );
     }
   }
 
+  update(_time, delta) {
+    this.conveyor?.update(delta);
+  }
+
   _shutdown() {
     this.events.off('block-tapped', this._onBlockTapped, this);
-    this.events.off('queue-overflow', this._onQueueOverflow, this);
-    this.events.off('tray-completed', this._onTrayCompleted, this);
+    this.events.off('conveyor-overflow', this._onConveyorOverflow, this);
+    this.events.off('box-full', this._onBoxFull, this);
+    this.events.off('column-cleared', this._onColumnCleared, this);
     this.input.keyboard.off('keydown-D', this._toggleDebugOverlay, this);
     this._debugTimer?.remove(false);
     this.blocks?.forEach((block) => block.destroy());
@@ -107,21 +125,32 @@ export default class GameScene extends Phaser.Scene {
       CONFIG.FUNNEL_AREA.y - 10,
       CONFIG.FUNNEL_AREA.width + 24,
       CONFIG.FUNNEL_AREA.height + 20,
-      24
+      20
     );
 
-    g.fillStyle(0xffffff, 0.03);
+    const conveyorArea = CONFIG.CONVEYOR.AREA;
+    g.fillStyle(0xffffff, 0.035);
     g.fillRoundedRect(
-      CONFIG.TRAY_AREA.x - 10,
-      CONFIG.TRAY_AREA.y - 10,
-      CONFIG.TRAY_AREA.width + 20,
-      CONFIG.TRAY_AREA.height + 20,
-      26
+      conveyorArea.x,
+      conveyorArea.y,
+      conveyorArea.width,
+      conveyorArea.height,
+      30
+    );
+
+    const boxArea = CONFIG.BOX_COLUMNS.AREA;
+    g.fillStyle(0xffffff, 0.025);
+    g.fillRoundedRect(
+      boxArea.x,
+      boxArea.y,
+      boxArea.width,
+      boxArea.height,
+      22
     );
   }
 
   _drawHUD() {
-    const back = this.add.text(48, 48, '←', {
+    this.add.text(48, 48, '<', {
       fontSize: '46px',
       color: UI.TEXT,
       fontStyle: 'bold'
@@ -137,7 +166,7 @@ export default class GameScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(500);
 
-    this.queueLabel = this.add.text(CONFIG.GAME_WIDTH - 42, 48, '', {
+    this.conveyorLabel = this.add.text(CONFIG.GAME_WIDTH - 42, 48, '', {
       fontSize: '20px',
       color: UI.MUTED_TEXT,
       fontStyle: 'bold'
@@ -146,29 +175,33 @@ export default class GameScene extends Phaser.Scene {
       delay: 100,
       loop: true,
       callback: () => {
-        if (!this.queue) return;
-        this.queueLabel.setText(`${this.queue.marbles.length}/${this.queue.capacity}`);
+        if (!this.conveyor) return;
+        this.conveyorLabel.setText(`${this.conveyor.count()}/${CONFIG.CONVEYOR.TOTAL_CAPACITY}`);
       }
     });
   }
 
-  _createTrays(trayData) {
-    const count = trayData.length;
-    const area = CONFIG.TRAY_AREA;
-    const spacing = area.width / (count + 1);
+  _createBoxColumns(columnData) {
+    return [...columnData]
+      .sort((a, b) => a.col - b.col)
+      .map((column) => new BoxColumn(
+        this,
+        column.col,
+        column.boxes,
+        this._getColumnX(column.col)
+      ));
+  }
 
-    return trayData.map((tray, index) => {
-      const x = area.x + spacing * (index + 1);
-      const y = area.y + 92;
-      return new Tray(this, x, y, tray.color, tray.capacity);
-    });
+  _getColumnX(col) {
+    const port = CONFIG.OUTPUT_PORTS;
+    const conveyor = CONFIG.CONVEYOR;
+    const totalSpan = 3 * port.GAP_BETWEEN;
+    const startX = conveyor.AREA.x + (conveyor.AREA.width - totalSpan) / 2;
+    return startX + col * port.GAP_BETWEEN;
   }
 
   _onBlockTapped(block) {
     if (this.isEnding || !block.refreshInteractivity()) return;
-
-    block.shatter();
-    this.boardManager.onBlockCleared(block);
 
     const startX = block.container.x;
     const startY = block.container.y;
@@ -176,8 +209,11 @@ export default class GameScene extends Phaser.Scene {
     const funnelX = CONFIG.FUNNEL_AREA.x + CONFIG.FUNNEL_AREA.width / 2;
     const funnelY = CONFIG.FUNNEL_AREA.y + CONFIG.FUNNEL_AREA.height - 8;
 
+    block.shatter();
+    this.boardManager.onBlockCleared(block);
+
     for (let i = 0; i < CONFIG.MARBLES_PER_BLOCK; i += 1) {
-      this.time.delayedCall(i * 80, () => {
+      this.time.delayedCall(i * 70, () => {
         if (this.isEnding) return;
         const marble = new Marble(
           this,
@@ -185,32 +221,46 @@ export default class GameScene extends Phaser.Scene {
           startY + Phaser.Math.Between(-8, 8),
           color
         );
-        marble.state = 'falling';
+        this.marbles.push(marble);
+        marble.state = 'falling-to-funnel';
         marble.flyTo(
-          funnelX + Phaser.Math.Between(-12, 12),
+          funnelX + Phaser.Math.Between(-10, 10),
           funnelY,
           CONFIG.MARBLE_FALL_DURATION,
           'Cubic.easeIn',
-          () => this.queue.enqueue(marble)
+          () => {
+            if (this.isEnding || marble.state === 'destroyed') return;
+            const entry = this.conveyor.track.positionAt(this.conveyor.track.entryT);
+            marble.flyTo(
+              entry.x,
+              entry.y,
+              CONFIG.MARBLE_TO_PORT_DURATION,
+              'Cubic.easeOut',
+              () => this.conveyor.acceptMarble(marble)
+            );
+          }
         );
       });
     }
   }
 
-  _onTrayCompleted() {
-    if (this.isEnding) return;
-    this.queue.evaluateMatching();
+  _onBoxFull(box) {
+    const column = this.boxColumns.find((candidate) => candidate.boxes.includes(box));
+    column?.onBoxFull(box);
+  }
+
+  _onColumnCleared() {
     this._checkVictory();
   }
 
   _checkVictory() {
     if (this.isEnding) return;
-    if (!this.trays.every((tray) => tray.isCompleted)) return;
+    if (!this.boxColumns.every((column) => column.isEmpty())) return;
 
     this._inputLocked = true;
     this.blocks.forEach((block) => block.refreshInteractivity());
     this.isEnding = true;
-    this.time.delayedCall(420, () => {
+    this.time.delayedCall(600, () => {
       this.scene.start('GameOverScene', {
         result: 'win',
         levelId: this.levelId,
@@ -219,7 +269,7 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  _onQueueOverflow() {
+  _onConveyorOverflow() {
     if (this.isEnding) return;
     this._inputLocked = true;
     this.blocks.forEach((block) => block.refreshInteractivity());
@@ -260,14 +310,25 @@ export default class GameScene extends Phaser.Scene {
 
   _updateDebugOverlay() {
     if (!this._debugText || !this._debugEnabled) return;
+    const inFlightStates = new Set([
+      'falling-to-funnel',
+      'dropping-to-box',
+      'flying-to-magnet-target'
+    ]);
+    const inFlight = this.marbles.filter((marble) => inFlightStates.has(marble.state)).length;
     const lines = [
-      `queue ${this.queue?.marbles.length ?? 0}/${this.queue?.capacity ?? 0}`,
-      `inputLocked ${this._inputLocked}`,
-      `ending ${this.isEnding}`
+      `Conveyor ${this.conveyor?.count() ?? 0}/${CONFIG.CONVEYOR.TOTAL_CAPACITY}`,
+      `Speed ${this.conveyor?.speed ?? 0}`,
+      `Paused ${Boolean(this.conveyor?.isPaused)}`,
+      `Input locked ${this._inputLocked}`,
+      `In flight ${inFlight}`
     ];
 
-    this.trays?.forEach((tray) => {
-      lines.push(`${tray.color}: data ${tray.current_count}/${tray.capacity} visual ${tray.visual_filled}/${tray.capacity}`);
+    this.boxColumns?.forEach((column) => {
+      const colors = column.getColorSequence();
+      lines.push(
+        `Col${column.columnIndex}: ${colors.length ? `[${colors.join(', ')}] top=${colors[0]}` : 'CLEARED'}`
+      );
     });
 
     this._debugText.setText(lines.join('\n'));

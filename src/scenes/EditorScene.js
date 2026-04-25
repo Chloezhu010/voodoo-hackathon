@@ -2,6 +2,7 @@ import { CONFIG, UI } from '../config/constants.js';
 import { COLORS, COLOR_IDS, getColorDefinition } from '../config/colors.js';
 import Block from '../entities/Block.js';
 import EditorState from '../systems/EditorState.js';
+import LevelLoader from '../systems/LevelLoader.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
 const GRID_START = { x: 120, y: 160 };
@@ -591,19 +592,11 @@ export default class EditorScene extends Phaser.Scene {
 
   _validateForPlayTest() {
     if (this.editorState.blocks.length === 0) return 'Place at least one block.';
-    if (this.editorState.trays.length === 0) return 'Add at least one tray.';
-
-    const blockColors = new Set(this.editorState.blocks.map((block) => block.color));
-    const trayColors = new Set(this.editorState.trays.map((tray) => tray.color));
-
-    for (const color of blockColors) {
-      if (!trayColors.has(color)) return `Color ${color} has no tray.`;
+    try {
+      LevelLoader.validate(this.editorState.toLevelData());
+    } catch (error) {
+      return error.message;
     }
-
-    for (const color of trayColors) {
-      if (!blockColors.has(color)) return `Tray ${color} has no block.`;
-    }
-
     return null;
   }
 

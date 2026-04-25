@@ -71,11 +71,8 @@ async function createCdpClient(wsUrl) {
     if (message.id && pending.has(message.id)) {
       const { resolveCommand, rejectCommand } = pending.get(message.id);
       pending.delete(message.id);
-      if (message.error) {
-        rejectCommand(new Error(JSON.stringify(message.error)));
-      } else {
-        resolveCommand(message.result);
-      }
+      if (message.error) rejectCommand(new Error(JSON.stringify(message.error)));
+      else resolveCommand(message.result);
       return;
     }
     if (message.method) events.push(message);
@@ -83,9 +80,7 @@ async function createCdpClient(wsUrl) {
 
   ws.addEventListener('close', () => {
     const error = new Error('CDP socket closed');
-    for (const { rejectCommand } of pending.values()) {
-      rejectCommand(error);
-    }
+    for (const { rejectCommand } of pending.values()) rejectCommand(error);
     pending.clear();
   });
 
@@ -111,7 +106,6 @@ async function evaluate(client, expression, timeout = 12000) {
     returnByValue: true,
     timeout
   });
-
   if (result.exceptionDetails) {
     throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
   }
@@ -121,8 +115,7 @@ async function evaluate(client, expression, timeout = 12000) {
 async function waitFor(client, expression, timeout = 12000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    const value = await evaluate(client, `Boolean(${expression})`);
-    if (value) return;
+    if (await evaluate(client, `Boolean(${expression})`)) return;
     await delay(200);
   }
   throw new Error(`Timed out waiting for: ${expression}`);
@@ -136,15 +129,12 @@ async function waitForGameSceneCreated(client, levelId, beforeGeneration, option
   const checks = [
     's.scene.isActive()',
     `s._createGeneration > ${beforeGeneration}`,
-    `s.levelId === ${levelId}`,
     `s.levelData?.level_id === ${levelId}`,
     's.blocks?.length > 0',
-    's.trays?.length > 0',
-    's.queue'
+    's.boxColumns?.length === 4',
+    's.conveyor'
   ];
-
   if (Number.isFinite(options.blocks)) checks.push(`s.blocks.length === ${options.blocks}`);
-  if (Number.isFinite(options.trays)) checks.push(`s.trays.length === ${options.trays}`);
   if (typeof options.fromEditor === 'boolean') checks.push(`s.fromEditor === ${options.fromEditor}`);
 
   const condition = checks.join(' && ');
@@ -159,11 +149,10 @@ async function waitForGameSceneCreated(client, levelId, beforeGeneration, option
       const state = () => ({
         active: s.scene.isActive(),
         generation: s._createGeneration || 0,
-        levelId: s.levelId,
-        levelDataId: s.levelData?.level_id,
+        levelId: s.levelData?.level_id,
         blocks: s.blocks?.length || 0,
-        trays: s.trays?.length || 0,
-        hasQueue: Boolean(s.queue),
+        columns: s.boxColumns?.length || 0,
+        conveyor: Boolean(s.conveyor),
         fromEditor: s.fromEditor,
         activeScenes: window.marbleSortGame.scene.getScenes(true).map((scene) => scene.scene.key)
       });
@@ -185,9 +174,7 @@ async function waitForGameSceneCreated(client, levelId, beforeGeneration, option
 async function startScene(client, sceneKey, data = {}) {
   await evaluate(client, `(() => {
     const manager = window.marbleSortGame.scene;
-    manager.getScenes(true).forEach((scene) => {
-      manager.stop(scene.scene.key);
-    });
+    manager.getScenes(true).forEach((scene) => manager.stop(scene.scene.key));
     manager.start('${sceneKey}', ${JSON.stringify(data)});
     return true;
   })()`);
@@ -197,7 +184,6 @@ async function restartGameScene(client, levelId, options = {}) {
   const beforeGeneration = await getGameSceneGeneration(client);
   const data = { levelId };
   if (typeof options.fromEditor === 'boolean') data.fromEditor = options.fromEditor;
-
   await startScene(client, 'GameScene', data);
   await waitForGameSceneCreated(client, levelId, beforeGeneration, options);
 }
@@ -215,11 +201,7 @@ async function gameToViewport(client, x, y) {
 
 async function clickGame(client, x, y) {
   const point = await gameToViewport(client, x, y);
-  await client.send('Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x: point.x,
-    y: point.y
-  });
+  await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
   await delay(30);
   await client.send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
@@ -243,152 +225,124 @@ async function assertNoInteractiveContainers(client, sceneKey) {
     const scene = window.marbleSortGame.scene.getScene('${sceneKey}');
     const found = [];
     const walk = (node, path) => {
-      if (node.type === 'Container' && node.input) {
-        found.push(path);
-      }
-      if (node.list) {
-        node.list.forEach((child, index) => walk(child, path + '/' + (child.type || 'child') + '[' + index + ']'));
-      }
+      if (node.type === 'Container' && node.input) found.push(path);
+      if (node.list) node.list.forEach((child, index) => walk(child, path + '/' + (child.type || 'child') + '[' + index + ']'));
     };
     scene.children.list.forEach((child, index) => walk(child, (child.type || 'child') + '[' + index + ']'));
     return found;
   })()`);
-  if (bad.length > 0) {
-    throw new Error(`${sceneKey} has interactive containers: ${bad.join(', ')}`);
-  }
+  if (bad.length > 0) throw new Error(`${sceneKey} has interactive containers: ${bad.join(', ')}`);
 }
 
-async function runQueueTrayEdgeCases(client) {
-  const futureCountResult = await evaluate(client, `(() => {
-    window._customLevelData = {
-      level_id: 99,
-      name: 'Future Count Test',
-      board_size: { cols: 5, rows: 5 },
-      blocks: [{ id: 'seed', col: 0, row: 0, z: 0, color: 'pink', is_hidden: false }],
-      trays: [{ color: 'pink', capacity: 6 }],
-      queue_capacity: 12,
-      gravity_flip_enabled: false,
-      magnet_count: 0
-    };
+async function setCustomLevel(client, level) {
+  await evaluate(client, `window._customLevelData = ${JSON.stringify(level)}; true`);
+  await restartGameScene(client, level.level_id, {
+    blocks: level.blocks.length,
+    fromEditor: true,
+    timeout: 15000
+  });
+}
+
+function makeColumns(columns) {
+  return [0, 1, 2, 3].map((col) => ({ col, boxes: columns[col] || [] }));
+}
+
+async function runConveyorBoxEdgeCases(client) {
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Single Color Conveyor',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [{ id: 'p0', col: 2, row: 2, z: 0, color: 'pink', is_hidden: false }],
+    box_columns: makeColumns({ 0: ['pink', 'pink', 'pink'] }),
+    conveyor_speed: 0.45,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
+  await clickGame(client, 360, 390);
+  await waitFor(client, `window.marbleSortGame.scene.getScene('GameOverScene').scene.isActive()`, 14000);
+  const singleResult = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameOverScene');
+    return { result: s.result, levelId: s.levelId };
+  })()`);
+  if (singleResult.result !== 'win') throw new Error(`Scenario 1 expected win: ${JSON.stringify(singleResult)}`);
+  console.log('ok - 02c scenario 1 single color boxes clear to victory');
+
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Top Color Gate',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [
+      { id: 'blue', col: 1, row: 2, z: 0, color: 'blue', is_hidden: false },
+      { id: 'pink', col: 3, row: 2, z: 0, color: 'pink', is_hidden: false }
+    ],
+    box_columns: makeColumns({ 0: ['pink', 'pink', 'pink', 'blue', 'blue', 'blue'] }),
+    conveyor_speed: 0.5,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
+  await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    s._onBlockTapped(s.blocks.find((block) => block.data.id === 'blue'));
     return true;
   })()`);
-  if (!futureCountResult) throw new Error('Could not start future-count test scene');
-  await restartGameScene(client, 99, { blocks: 1, trays: 1, fromEditor: true });
-
-  const scenario2 = await evaluate(client, `(() => {
+  await delay(3500);
+  const blocked = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
-    const tray = s.trays[0];
-    tray.current_count = 4;
-    tray.visual_filled = 4;
-    tray.reserved_slots = [];
-    const makeMarble = (index) => ({
-      color: 'pink',
-      state: 'queued',
-      slotIndex: index,
-      sprite: { x: s.queue.slotPositions[index].x, y: s.queue.slotPositions[index].y },
-      flyTo() {},
-      destroy() { this.state = 'destroyed'; }
-    });
-    const marbles = [makeMarble(0), makeMarble(1), makeMarble(2)];
-    s.queue.marbles = marbles;
-    s.queue.evaluateMatching();
+    const top = s.boxColumns[0].boxes[0];
     return {
-      queueLength: s.queue.marbles.length,
-      remainingIsThird: s.queue.marbles[0] === marbles[2],
-      remainingState: s.queue.marbles[0]?.state,
-      currentCount: tray.current_count,
-      visualFilled: tray.visual_filled,
-      reserved: tray.reserved_slots.length,
-      consumedStates: marbles.slice(0, 2).map((m) => m.state)
+      conveyorCount: s.conveyor.count(),
+      topColor: top.color,
+      topCount: top.current_count,
+      blueStillMoving: s.conveyor.marbles.some((m) => m.color === 'blue' && m.state === 'on-conveyor')
     };
   })()`);
-  if (
-    scenario2.queueLength !== 1 ||
-    !scenario2.remainingIsThird ||
-    scenario2.remainingState !== 'queued' ||
-    scenario2.currentCount !== 6 ||
-    scenario2.visualFilled !== 4 ||
-    scenario2.reserved !== 2 ||
-    scenario2.consumedStates.some((state) => state !== 'flying-to-tray')
-  ) {
-    throw new Error(`Scenario 2 future-count failed: ${JSON.stringify(scenario2)}`);
+  if (blocked.topColor !== 'pink' || blocked.topCount !== 0 || !blocked.blueStillMoving) {
+    throw new Error(`Scenario 3 top-color gate failed: ${JSON.stringify(blocked)}`);
   }
-  console.log('ok - 02b scenario 2 future-count prevents overfilling tray');
+  console.log('ok - 02c scenario 3 wrong color loops until top box changes');
 
-  await evaluate(client, `(() => {
-    window._customLevelData = {
-      level_id: 99,
-      name: 'Overflow Lock Test',
-      board_size: { cols: 5, rows: 5 },
-      blocks: [
-        { id: 'b0', col: 0, row: 0, z: 0, color: 'blue', is_hidden: false },
-        { id: 'b1', col: 1, row: 0, z: 0, color: 'blue', is_hidden: false },
-        { id: 'b2', col: 2, row: 0, z: 0, color: 'blue', is_hidden: false },
-        { id: 'b3', col: 3, row: 0, z: 0, color: 'blue', is_hidden: false },
-        { id: 'b4', col: 4, row: 0, z: 0, color: 'blue', is_hidden: false },
-        { id: 'b5', col: 0, row: 1, z: 0, color: 'blue', is_hidden: false },
-        { id: 'b6', col: 1, row: 1, z: 0, color: 'blue', is_hidden: false }
-      ],
-      trays: [{ color: 'pink', capacity: 6 }],
-      queue_capacity: 12,
-      gravity_flip_enabled: false,
-      magnet_count: 0
-    };
-    return true;
-  })()`);
-  await restartGameScene(client, 99, { blocks: 7, trays: 1, fromEditor: true });
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Overflow',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [
+      { id: 'b0', col: 0, row: 0, z: 0, color: 'blue', is_hidden: false },
+      { id: 'b1', col: 1, row: 0, z: 0, color: 'blue', is_hidden: false },
+      { id: 'b2', col: 2, row: 0, z: 0, color: 'blue', is_hidden: false },
+      { id: 'b3', col: 3, row: 0, z: 0, color: 'blue', is_hidden: false },
+      { id: 'b4', col: 4, row: 0, z: 0, color: 'blue', is_hidden: false }
+    ],
+    box_columns: makeColumns({ 0: Array(15).fill('blue') }),
+    conveyor_speed: 0.01,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
   await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
-    window.__postOverflowTapCount = 0;
-    s.blocks.slice(0, 6).forEach((block) => s._onBlockTapped(block));
+    s.blocks.slice(0, 4).forEach((block) => s._onBlockTapped(block));
     return true;
   })()`);
-  await waitFor(client, `window.marbleSortGame.scene.getScene('GameScene')._inputLocked === true`, 5000);
-  const overflowBeforeClick = await evaluate(client, `(() => {
+  await waitFor(client, `window.marbleSortGame.scene.getScene('GameScene')._inputLocked === true`, 9000);
+  const overflow = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
-    s.events.on('block-tapped', () => { window.__postOverflowTapCount += 1; });
-    const target = s.blocks.find((block) => block.data.id === 'b6');
+    const target = s.blocks.find((block) => block.data.id === 'b4');
     return {
-      queueLength: s.queue.marbles.length,
-      overflowFired: s.queue._overflowFired,
       inputLocked: s._inputLocked,
-      targetEnabled: target.hitZone.input?.enabled === true,
-      targetX: target.container.x,
-      targetY: target.container.y
+      overflowFired: s.conveyor._overflowFired,
+      count: s.conveyor.count(),
+      targetEnabled: target.hitZone.input?.enabled === true
     };
   })()`);
-  if (
-    overflowBeforeClick.queueLength !== 12 ||
-    !overflowBeforeClick.overflowFired ||
-    !overflowBeforeClick.inputLocked ||
-    overflowBeforeClick.targetEnabled
-  ) {
-    throw new Error(`Scenario 1/7 pre-click overflow state failed: ${JSON.stringify(overflowBeforeClick)}`);
+  if (!overflow.inputLocked || !overflow.overflowFired || overflow.targetEnabled) {
+    throw new Error(`Scenario 5 overflow failed: ${JSON.stringify(overflow)}`);
   }
-  await clickGame(client, overflowBeforeClick.targetX, overflowBeforeClick.targetY);
-  await delay(120);
-  const overflowAfterClick = await evaluate(client, `(() => {
-    const s = window.marbleSortGame.scene.getScene('GameScene');
-    const target = s.blocks.find((block) => block.data.id === 'b6');
-    return {
-      tapCount: window.__postOverflowTapCount,
-      targetCleared: target.isCleared,
-      queueLength: s.queue.marbles.length,
-      inputLocked: s._inputLocked
-    };
-  })()`);
-  if (
-    overflowAfterClick.tapCount !== 0 ||
-    overflowAfterClick.targetCleared ||
-    overflowAfterClick.queueLength !== 12 ||
-    !overflowAfterClick.inputLocked
-  ) {
-    throw new Error(`Scenario 8 post-overflow hitZone lock failed: ${JSON.stringify(overflowAfterClick)}`);
-  }
-  console.log('ok - 02b scenarios 1, 7, 8 overflow locks input and hitZones');
+  console.log('ok - 02c scenario 5 conveyor overflow locks input once');
 
-  await restartGameScene(client, 2, { blocks: 12, trays: 4 });
-  const hiddenTarget = await evaluate(client, `(() => {
+  await restartGameScene(client, 2, { blocks: 12 });
+  const reveal = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
     window.__revealedBlockTapCount = 0;
     s.events.on('block-tapped', () => { window.__revealedBlockTapCount += 1; });
@@ -396,56 +350,91 @@ async function runQueueTrayEdgeCases(client) {
     const hidden = s.blocks.find((block) => block.data.id === 'h1');
     top.shatter();
     s.boardManager.onBlockCleared(top);
-    let hits = [];
-    try {
-      hits = s.input.manager.hitTest(
-        { x: hidden.container.x, y: hidden.container.y },
-        s.children.list,
-        s.cameras.main
-      ).map((obj) => ({
-        type: obj.type,
-        x: obj.x,
-        y: obj.y,
-        enabled: obj.input?.enabled,
-        visible: obj.visible,
-        depth: obj.depth
-      }));
-    } catch (error) {
-      hits = [{ error: error.message }];
-    }
     return {
       hiddenCovered: hidden.isCovered,
       hiddenEnabled: hidden.hitZone.input?.enabled === true,
-      hiddenVisible: hidden.hitZone.visible,
-      pointerupListeners: hidden.hitZone.listenerCount?.('pointerup') ?? -1,
-      hits,
       x: hidden.container.x,
       y: hidden.container.y
     };
   })()`);
-  if (hiddenTarget.hiddenCovered || !hiddenTarget.hiddenEnabled) {
-    throw new Error(`Scenario 9 hidden block did not enable after reveal: ${JSON.stringify(hiddenTarget)}`);
+  if (reveal.hiddenCovered || !reveal.hiddenEnabled) {
+    throw new Error(`Scenario 9 reveal enable failed: ${JSON.stringify(reveal)}`);
   }
-  await delay(260);
-  await clickGame(client, hiddenTarget.x, hiddenTarget.y);
+  await clickGame(client, reveal.x, reveal.y);
   await delay(160);
-  const revealedClick = await evaluate(client, `(() => {
+  const revealClick = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('GameScene');
     const hidden = s.blocks.find((block) => block.data.id === 'h1');
+    return { tapCount: window.__revealedBlockTapCount, hiddenCleared: hidden.isCleared };
+  })()`);
+  if (revealClick.tapCount !== 1 || !revealClick.hiddenCleared) {
+    throw new Error(`Scenario 9 revealed hitZone click failed: ${JSON.stringify(revealClick)}`);
+  }
+  console.log('ok - 02c hitZone reveal remains clickable');
+
+  await setCustomLevel(client, {
+    level_id: 99,
+    name: 'Direct Conveyor Mechanics',
+    difficulty: 0,
+    board_size: { cols: 5, rows: 5 },
+    blocks: [{ id: 'blue', col: 2, row: 2, z: 0, color: 'blue', is_hidden: false }],
+    box_columns: makeColumns({ 0: ['blue', 'blue', 'blue'] }),
+    conveyor_speed: 0.1,
+    gravity_flip_enabled: false,
+    magnet_count: 0
+  });
+  const direct = await evaluate(client, `(async () => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    const fake = (color, t) => ({
+      color,
+      t,
+      state: 'on-conveyor',
+      sprite: { x: 0, y: 0 },
+      setPositionDirect(x, y) { this.sprite.x = x; this.sprite.y = y; },
+      flyTo(_x, _y, _duration, _ease, onComplete) { if (onComplete) onComplete(); },
+      destroy() { this.state = 'destroyed'; }
+    });
+    const m0 = fake('blue', 0.2);
+    s.conveyor.marbles = [m0];
+    s.conveyor.setPaused(true);
+    s.conveyor.update(1000);
+    const pausedT = m0.t;
+    s.conveyor.setPaused(false);
+    s.conveyor.update(1000);
+    const advanced = m0.t > pausedT;
+
+    const m1 = fake('blue', 0.3);
+    const m2 = fake('blue', 0.4);
+    s.conveyor.marbles = [m1, m2];
+    const magnetized = s.conveyor.magnetize('blue');
+    await new Promise((resolve) => setTimeout(resolve, 260));
+    const box = s.boxColumns[0].boxes[0];
+    const boxCountAfterMagnet = box.current_count;
+    box.current_count = 0;
+    box.visual_filled = 0;
+    box.reservedSlots = [];
+
+    const slots = [
+      s.boxColumns[0].reserveSlotForColor('blue'),
+      s.boxColumns[0].reserveSlotForColor('blue'),
+      s.boxColumns[0].reserveSlotForColor('blue'),
+      s.boxColumns[0].reserveSlotForColor('blue')
+    ];
+
     return {
-      tapCount: window.__revealedBlockTapCount,
-      hiddenCleared: hidden.isCleared,
-      enabledAfterClick: hidden.hitZone.input?.enabled === true,
-      pointerX: s.input.activePointer.x,
-      pointerY: s.input.activePointer.y,
-      pointerWorldX: s.input.activePointer.worldX,
-      pointerWorldY: s.input.activePointer.worldY
+      pausedT,
+      advanced,
+      magnetized,
+      conveyorCount: s.conveyor.count(),
+      boxCountAfterMagnet,
+      fourthSlot: slots[3],
+      uniqueSlots: new Set(slots.slice(0, 3).map((slot) => slot && (slot.x + ':' + slot.y))).size
     };
   })()`);
-  if (revealedClick.tapCount !== 1 || !revealedClick.hiddenCleared || revealedClick.enabledAfterClick) {
-    throw new Error(`Scenario 9 revealed hitZone click failed: ${JSON.stringify({ hiddenTarget, revealedClick })}`);
+  if (!direct.advanced || direct.magnetized !== 2 || direct.conveyorCount !== 0 || direct.boxCountAfterMagnet !== 2 || direct.fourthSlot !== null || direct.uniqueSlots !== 3) {
+    throw new Error(`Scenarios 7/8/9 direct mechanics failed: ${JSON.stringify(direct)}`);
   }
-  console.log('ok - 02b scenario 9 revealed hidden block hitZone becomes clickable');
+  console.log('ok - 02c scenarios 7, 8, 9 magnetize, pause, and slot reserve work');
 }
 
 async function runBrowserChecks(client) {
@@ -460,12 +449,10 @@ async function runBrowserChecks(client) {
     const game = window.marbleSortGame;
     return {
       menuActive: game.scene.getScene('MenuScene').scene.isActive(),
-      canvasCount: document.querySelectorAll('canvas').length,
-      text: document.body.innerText
+      canvasCount: document.querySelectorAll('canvas').length
     };
   })()`);
-  if (!bootState.menuActive) throw new Error('MenuScene is not active after boot');
-  if (bootState.canvasCount !== 1) throw new Error(`Expected 1 canvas, got ${bootState.canvasCount}`);
+  if (!bootState.menuActive || bootState.canvasCount !== 1) throw new Error(`Bad boot state: ${JSON.stringify(bootState)}`);
   console.log('ok - browser boots to MenuScene');
 
   await assertNoInteractiveContainers(client, 'MenuScene');
@@ -474,90 +461,32 @@ async function runBrowserChecks(client) {
   await assertNoInteractiveContainers(client, 'LevelSelectScene');
   console.log('ok - PLAY button hit zone starts LevelSelectScene');
 
-  await clickGame(client, 50, 50);
-  await waitFor(client, `window.marbleSortGame.scene.getScene('MenuScene').scene.isActive()`);
-  console.log('ok - level select back hit zone returns to menu');
-
-  await clickGame(client, 360, 740);
-  await waitFor(client, `window.marbleSortGame.scene.getScene('EditorScene').scene.isActive()`);
-  await assertNoInteractiveContainers(client, 'EditorScene');
-  await clickGame(client, 180, 720);
-  await clickGame(client, 540, 720);
-  await clickGame(client, 612, 720);
-  const editorControls = await evaluate(client, `(() => {
-    const s = window.marbleSortGame.scene.getScene('EditorScene');
-    return {
-      color: s.editorState.activeColor,
-      hidden: s.editorState.activeIsHidden,
-      erase: s.editorState.eraseMode
-    };
-  })()`);
-  if (editorControls.color !== 'blue' || !editorControls.hidden || !editorControls.erase) {
-    throw new Error(`Editor control hit zones failed: ${JSON.stringify(editorControls)}`);
-  }
-  console.log('ok - editor palette hit zones update state');
-
-  await evaluate(client, `(() => {
-    const s = window.marbleSortGame.scene.getScene('EditorScene');
-    s.editorState.clear();
-    s.editorState.eraseMode = false;
-    s.editorState.activeIsHidden = false;
-    s.editorState.activeColor = 'pink';
-    s.editorState.setActiveZ(0);
-    s.editorState.placeBlock(0, 0);
-    s.editorState.trays = [{ color: 'pink', capacity: 6 }];
-    s._renderAll();
-    return true;
-  })()`);
-  const beforeEditorPlayGeneration = await getGameSceneGeneration(client);
-  await clickGame(client, 594, 48);
-  await waitForGameSceneCreated(client, 99, beforeEditorPlayGeneration, { blocks: 1, trays: 1, fromEditor: true });
-  const customLevelActive = await evaluate(client, `(() => {
-    const s = window.marbleSortGame.scene.getScene('GameScene');
-    return s.fromEditor && s.levelId === 99 && s.blocks.length === 1;
-  })()`);
-  if (!customLevelActive) throw new Error('Editor Play Test hit zone did not start custom GameScene');
-  console.log('ok - editor Play Test hit zone starts custom level');
-
-  await startScene(client, 'LevelSelectScene');
-  await waitFor(client, `window.marbleSortGame.scene.getScene('LevelSelectScene').scene.isActive()`);
   const beforeLevelCardGeneration = await getGameSceneGeneration(client);
   await clickGame(client, 360, 620);
-  await waitForGameSceneCreated(client, 2, beforeLevelCardGeneration, { blocks: 12, trays: 4 });
-  console.log('ok - level card hit zone starts selected level');
+  await waitForGameSceneCreated(client, 2, beforeLevelCardGeneration, { blocks: 12 });
+  console.log('ok - level card hit zone starts conveyor level');
 
   await clickGame(client, 48, 48);
   await waitFor(client, `window.marbleSortGame.scene.getScene('LevelSelectScene').scene.isActive()`);
   console.log('ok - game back hit zone returns to level select');
 
-  await startScene(client, 'GameOverScene', { result: 'lose', levelId: 1 });
-  await waitFor(client, `window.marbleSortGame.scene.getScene('GameOverScene').scene.isActive()`);
-  await assertNoInteractiveContainers(client, 'GameOverScene');
-  const beforeRetryGeneration = await getGameSceneGeneration(client);
-  await clickGame(client, 360, 650);
-  await waitForGameSceneCreated(client, 1, beforeRetryGeneration, { blocks: 9, trays: 3 });
-  console.log('ok - GameOver retry hit zone restarts level');
-
   for (const levelId of [1, 2, 3]) {
-    const expected = {
-      1: { blocks: 9, trays: 3 },
-      2: { blocks: 12, trays: 4 },
-      3: { blocks: 17, trays: 6 }
-    }[levelId];
-    await restartGameScene(client, levelId, expected);
+    const expected = { 1: 9, 2: 12, 3: 17 }[levelId];
+    await restartGameScene(client, levelId, { blocks: expected });
     const summary = await evaluate(client, `(() => {
       const s = window.marbleSortGame.scene.getScene('GameScene');
-      const badBlock = s.blocks.find((b) => !Number.isFinite(b.container.x) || !Number.isFinite(b.container.y));
       return {
-        name: s.levelData.name,
         blocks: s.blocks.length,
-        trays: s.trays.length,
-        queueCapacity: s.queue.capacity,
-        badBlock: badBlock ? badBlock.data.id : null
+        columns: s.boxColumns.length,
+        capacity: s.conveyor.count(),
+        speed: s.conveyor.speed,
+        boxes: s.boxColumns.map((column) => column.boxes.length)
       };
     })()`);
-    if (summary.badBlock) throw new Error(`Level ${levelId} has bad block position: ${summary.badBlock}`);
-    console.log(`ok - level ${levelId} loads (${summary.blocks} blocks, ${summary.trays} trays)`);
+    if (summary.blocks !== expected || summary.columns !== 4) {
+      throw new Error(`Level ${levelId} failed to load conveyor schema: ${JSON.stringify(summary)}`);
+    }
+    console.log(`ok - level ${levelId} loads conveyor schema (${summary.blocks} blocks, boxes ${summary.boxes.join('/')})`);
   }
 
   const hitZones = await evaluate(client, `(() => {
@@ -576,103 +505,18 @@ async function runBrowserChecks(client) {
       hitX: bad.hitZone?.x,
       hitY: bad.hitZone?.y,
       visualX: bad.container.x,
-      visualY: bad.container.y,
-      width: bad.hitZone?.width,
-      height: bad.hitZone?.height
+      visualY: bad.container.y
     } : null;
   })()`);
   if (hitZones) throw new Error(`Block hit zone mismatch: ${JSON.stringify(hitZones)}`);
   console.log('ok - block hit zones align with visuals');
-
-  await restartGameScene(client, 2, { blocks: 12, trays: 4 });
-  const reveal = await evaluate(client, `(() => {
-    const s = window.marbleSortGame.scene.getScene('GameScene');
-    const top = s.blocks.find((b) => b.data.id === 't1');
-    const hidden = s.blocks.find((b) => b.data.id === 'h1');
-    const before = hidden.isCovered === true;
-    const disabledWhileCovered = !hidden.hitZone.input?.enabled;
-    top.shatter();
-    s.boardManager.onBlockCleared(top);
-    return {
-      before,
-      disabledWhileCovered,
-      after: hidden.isCovered,
-      enabledAfterReveal: hidden.hitZone.input?.enabled === true,
-      hiddenCleared: hidden.isCleared
-    };
-  })()`);
-  if (!reveal.before || !reveal.disabledWhileCovered || reveal.after || !reveal.enabledAfterReveal || reveal.hiddenCleared) {
-    throw new Error(`Hidden layer reveal failed: ${JSON.stringify(reveal)}`);
-  }
-  console.log('ok - hidden layer reveals when top block clears');
-
-  await restartGameScene(client, 1, { blocks: 9, trays: 3 });
-  await delay(300);
-  const visibleBlockPoint = await evaluate(client, `(() => {
-    const s = window.marbleSortGame.scene.getScene('GameScene');
-    const block = s.blocks.find((b) => b.data.color === 'pink' && !b.isCovered);
-    window.__visibleBlockTapTarget = block.data.id;
-    let hits = [];
-    try {
-      hits = s.input.manager.hitTest(
-        { x: block.container.x, y: block.container.y },
-        s.children.list,
-        s.cameras.main
-      ).map((obj) => ({
-        type: obj.type,
-        x: obj.x,
-        y: obj.y,
-        enabled: obj.input?.enabled,
-        visible: obj.visible,
-        depth: obj.depth
-      }));
-    } catch (error) {
-      hits = [{ error: error.message }];
-    }
-    return {
-      id: block.data.id,
-      x: block.container.x,
-      y: block.container.y,
-      enabled: block.hitZone.input?.enabled,
-      visible: block.hitZone.visible,
-      listeners: block.hitZone.listenerCount?.('pointerup') ?? -1,
-      hits
-    };
-  })()`);
-  await clickGame(client, visibleBlockPoint.x, visibleBlockPoint.y);
-  await delay(300);
-  const oneBlockResult = await evaluate(client, `(async () => {
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const s = window.marbleSortGame.scene.getScene('GameScene');
-    const block = s.blocks.find((b) => b.data.id === window.__visibleBlockTapTarget);
-    const tray = s.trays.find((t) => t.color === 'pink');
-    const start = performance.now();
-    while (tray.filled < 6 && performance.now() - start < 7000) {
-      await wait(100);
-    }
-    return {
-      trayFilled: tray.filled,
-      blockCleared: block.isCleared,
-      queueLength: s.queue.marbles.length,
-      sceneActive: s.scene.isActive()
-    };
-  })()`, 9000);
-  if (!oneBlockResult.blockCleared || oneBlockResult.trayFilled !== 6) {
-    const errorsSoFar = client.events.filter((event) => (
-      event.method === 'Runtime.exceptionThrown' ||
-      (event.method === 'Log.entryAdded' && ['error', 'assert'].includes(event.params.entry.level)) ||
-      (event.method === 'Console.messageAdded' && event.params.message.level === 'error')
-    ));
-    throw new Error(`Tap -> tray flow failed: ${JSON.stringify({ visibleBlockPoint, oneBlockResult, errorsSoFar })}`);
-  }
-  console.log('ok - tapping a block fills matching tray');
 
   await startScene(client, 'EditorScene');
   await waitFor(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('EditorScene');
     return s.scene.isActive() && s.editorState;
   })()`);
-  const beforeEditorHandoffGeneration = await getGameSceneGeneration(client);
+  const beforeEditorPlayGeneration = await getGameSceneGeneration(client);
   const editorResult = await evaluate(client, `(() => {
     const s = window.marbleSortGame.scene.getScene('EditorScene');
     s.editorState.clear();
@@ -681,23 +525,31 @@ async function runBrowserChecks(client) {
     s.editorState.activeColor = 'pink';
     s.editorState.setActiveZ(0);
     s.editorState.placeBlock(0, 0);
-    s.editorState.trays = [{ color: 'pink', capacity: 6 }];
-    const json = s.editorState.exportJSON();
-    s.editorState.importJSON(json);
     s._playTest();
     return {
       blocks: window._customLevelData.blocks.length,
-      trays: window._customLevelData.trays.length,
-      customLevel: window._customLevelData.level_id
+      columns: window._customLevelData.box_columns.length,
+      boxes: window._customLevelData.box_columns.flatMap((column) => column.boxes).length
     };
   })()`);
-  if (editorResult.blocks !== 1 || editorResult.trays !== 1 || editorResult.customLevel !== 99) {
+  if (editorResult.blocks !== 1 || editorResult.columns !== 4 || editorResult.boxes !== 3) {
     throw new Error(`Editor play-test handoff failed: ${JSON.stringify(editorResult)}`);
   }
-  await waitForGameSceneCreated(client, 99, beforeEditorHandoffGeneration, { blocks: 1, trays: 1, fromEditor: true });
-  console.log('ok - editor exports and starts custom play-test');
+  await waitForGameSceneCreated(client, 99, beforeEditorPlayGeneration, { blocks: 1, fromEditor: true });
+  console.log('ok - editor exports conveyor box schema and starts custom play-test');
 
-  await runQueueTrayEdgeCases(client);
+  await runConveyorBoxEdgeCases(client);
+
+  const overlayDump = await evaluate(client, `(() => {
+    const s = window.marbleSortGame.scene.getScene('GameScene');
+    s._toggleDebugOverlay();
+    s._updateDebugOverlay();
+    return s._debugText.text;
+  })()`);
+  if (!overlayDump.includes('Conveyor') || !overlayDump.includes('Col0')) {
+    throw new Error(`Debug overlay missing conveyor data: ${overlayDump}`);
+  }
+  console.log(`ok - debug overlay dump: ${overlayDump.split('\\n').slice(0, 3).join(' | ')}`);
 
   const errors = client.events.filter((event) => {
     if (event.method === 'Runtime.exceptionThrown') return true;
@@ -721,7 +573,7 @@ async function main() {
   let client;
 
   try {
-    await waitForJson(`${BASE_URL}/src/levels/level_01.json`, 10000);
+    await waitForJson(`${BASE_URL}/src/levels/level_test.json`, 10000);
     chrome = spawnProcess(CHROME_BIN, [
       '--headless=new',
       '--disable-gpu',

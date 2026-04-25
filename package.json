@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node scripts/validate.mjs",
+    "test": "node scripts/validate.mjs && node scripts/test-conveyor-track.mjs",
     "test:browser": "node scripts/smoke-browser.mjs"
   }
 }

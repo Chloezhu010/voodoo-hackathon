@@ -2,19 +2,42 @@ export const CONFIG = {
   GAME_WIDTH: 720,
   GAME_HEIGHT: 1280,
   BLOCK_SIZE: 96,
-  MARBLES_PER_BLOCK: 6,
+  MARBLES_PER_BLOCK: 9,
   MARBLE_RADIUS: 14,
-  QUEUE_CAPACITY_DEFAULT: 12,
-  TRAY_CAPACITY: 6,
 
   HEADER_HEIGHT: 80,
-  BOARD_AREA: { x: 60, y: 120, width: 600, height: 600 },
-  FUNNEL_AREA: { x: 200, y: 740, width: 320, height: 100 },
-  QUEUE_AREA: { x: 80, y: 860, width: 560, height: 80 },
-  TRAY_AREA: { x: 80, y: 980, width: 560, height: 200 },
+  BOARD_AREA: { x: 60, y: 120, width: 600, height: 540 },
+  FUNNEL_AREA: { x: 280, y: 670, width: 160, height: 60 },
 
-  MARBLE_FALL_DURATION: 600,
-  MARBLE_TO_TRAY_DURATION: 400
+  CONVEYOR: {
+    AREA: { x: 40, y: 730, width: 640, height: 320 },
+    SLOTS_PER_LAYER: 12,
+    TOTAL_CAPACITY: 24,
+    DEFAULT_SPEED: 0.06,
+    UPPER_LAYER_Y_OFFSET: -100,
+    LOWER_LAYER_Y_OFFSET: 100,
+    CORNER_RADIUS: 50
+  },
+
+  OUTPUT_PORTS: {
+    Y_OFFSET: 110,
+    GAP_BETWEEN: 152,
+    PORT_WIDTH: 80,
+    DETECT_EPSILON: 0.012
+  },
+
+  BOX_COLUMNS: {
+    AREA: { x: 40, y: 1080, width: 640, height: 180 },
+    BOX_WIDTH: 100,
+    BOX_HEIGHT: 50,
+    BOX_GAP: 4,
+    SLOT_RADIUS: 12,
+    BOX_CAPACITY: 3
+  },
+
+  MARBLE_FALL_DURATION: 450,
+  MARBLE_TO_PORT_DURATION: 350,
+  MARBLE_PORT_DROP_DURATION: 350
 };
 
 export const UI = {

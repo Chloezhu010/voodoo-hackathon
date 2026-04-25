@@ -35,7 +35,7 @@ export default class GameOverScene extends Phaser.Scene {
     this.add.text(
       CONFIG.GAME_WIDTH / 2,
       540,
-      isWin ? 'Trays complete' : 'The queue is full',
+      isWin ? 'Boxes cleared' : 'The conveyor is full',
       {
         fontSize: '24px',
         color: UI.MUTED_TEXT,

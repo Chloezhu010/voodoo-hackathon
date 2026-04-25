@@ -2,12 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { COLOR_IDS } from '../src/config/colors.js';
+import { CONFIG } from '../src/config/constants.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const SRC = join(ROOT, 'src');
 const LEVELS = join(SRC, 'levels');
-const COLOR_IDS = ['pink', 'blue', 'green', 'yellow', 'purple', 'orange'];
-
 function pass(message) {
   console.log(`ok - ${message}`);
 }
@@ -45,15 +45,17 @@ function checkLevelFiles() {
       fail(`${file}: board_size cols/rows must be integers`);
     }
     if (!Array.isArray(data.blocks)) fail(`${file}: blocks must be an array`);
-    if (!Array.isArray(data.trays)) fail(`${file}: trays must be an array`);
-    if (!Number.isInteger(data.queue_capacity) || data.queue_capacity <= 0) {
-      fail(`${file}: queue_capacity must be a positive integer`);
+    if (!Array.isArray(data.box_columns)) fail(`${file}: box_columns must be an array`);
+    if (data.box_columns.length !== 4) fail(`${file}: box_columns must have 4 columns`);
+    if (data.conveyor_speed !== undefined && (!Number.isFinite(data.conveyor_speed) || data.conveyor_speed <= 0)) {
+      fail(`${file}: conveyor_speed must be a positive number`);
     }
 
     const blockIds = new Set();
     const occupiedLayers = new Set();
-    const blockColors = new Set();
-    const trayColors = new Set();
+    const blockColorCounts = new Map();
+    const boxColorCounts = new Map();
+    const boxColumns = new Set();
 
     data.blocks.forEach((block, index) => {
       if (!block.id) fail(`${file}: block ${index} missing id`);
@@ -72,29 +74,35 @@ function checkLevelFiles() {
       const layerKey = `${block.col}:${block.row}:${block.z}`;
       if (occupiedLayers.has(layerKey)) fail(`${file}: duplicate block layer ${layerKey}`);
       occupiedLayers.add(layerKey);
-      blockColors.add(block.color);
+      blockColorCounts.set(block.color, (blockColorCounts.get(block.color) || 0) + 1);
     });
 
-    data.trays.forEach((tray, index) => {
-      if (!COLOR_IDS.includes(tray.color)) fail(`${file}: unknown tray color ${tray.color}`);
-      if (!Number.isInteger(tray.capacity) || tray.capacity <= 0) {
-        fail(`${file}: tray ${index} capacity must be positive integer`);
+    let totalBoxes = 0;
+    data.box_columns.forEach((column, index) => {
+      if (!Number.isInteger(column.col) || column.col < 0 || column.col > 3) {
+        fail(`${file}: box column ${index} col must be 0..3`);
       }
-      if (trayColors.has(tray.color)) fail(`${file}: duplicate tray color ${tray.color}`);
-      trayColors.add(tray.color);
+      if (boxColumns.has(column.col)) fail(`${file}: duplicate box column ${column.col}`);
+      boxColumns.add(column.col);
+      if (!Array.isArray(column.boxes)) fail(`${file}: column ${column.col} boxes must be an array`);
+      column.boxes.forEach((color) => {
+        if (!COLOR_IDS.includes(color)) fail(`${file}: unknown box color ${color}`);
+        boxColorCounts.set(color, (boxColorCounts.get(color) || 0) + 1);
+        totalBoxes += 1;
+      });
     });
 
-    blockColors.forEach((color) => {
-      if (!trayColors.has(color)) fail(`${file}: block color ${color} has no tray`);
-    });
-    trayColors.forEach((color) => {
-      if (!blockColors.has(color)) fail(`${file}: tray color ${color} has no block`);
-    });
+    const availableMarbles = data.blocks.length * CONFIG.MARBLES_PER_BLOCK;
+    const boxSlots = totalBoxes * CONFIG.BOX_COLUMNS.BOX_CAPACITY;
+    if (availableMarbles !== boxSlots) fail(`${file}: ${availableMarbles} marbles but ${boxSlots} box slots`);
 
-    const neededMarbles = [...data.trays].reduce((total, tray) => total + tray.capacity, 0);
-    const availableMarbles = data.blocks.length * 6;
-    if (availableMarbles < neededMarbles) {
-      fail(`${file}: not enough block marbles for trays`);
+    const colors = new Set([...blockColorCounts.keys(), ...boxColorCounts.keys()]);
+    for (const color of colors) {
+      const marbleCount = (blockColorCounts.get(color) || 0) * CONFIG.MARBLES_PER_BLOCK;
+      const slotCount = (boxColorCounts.get(color) || 0) * CONFIG.BOX_COLUMNS.BOX_CAPACITY;
+      if (marbleCount !== slotCount) {
+        fail(`${file}: color ${color} has ${marbleCount} marbles but ${slotCount} box slots`);
+      }
     }
   });
 
@@ -131,7 +139,8 @@ async function checkEditorState() {
   const json = state.exportJSON();
   const restored = new EditorState();
   restored.importJSON(json);
-  if (restored.blocks.length !== 1 || restored.trays.length !== 1 || restored.trays[0].color !== 'blue') {
+  const boxes = restored.boxColumns.flatMap((column) => column.boxes);
+  if (restored.blocks.length !== 1 || boxes.length !== 3 || boxes.some((color) => color !== 'blue')) {
     fail('EditorState JSON round-trip failed');
   }
 

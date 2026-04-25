@@ -6,7 +6,7 @@ export default class Marble {
     this.scene = scene;
     this.color = color;
     this.state = 'created';
-    this.slotIndex = -1;
+    this.t = -1;
     this.sprite = scene.add.graphics();
     this.sprite.setDepth(400);
     this.sprite.fillStyle(getColorDefinition(color).hex, 1);
@@ -22,7 +22,7 @@ export default class Marble {
   flyTo(targetX, targetY, duration = 300, ease = 'Cubic.easeOut', onComplete = null) {
     if (!this.sprite || this.state === 'destroyed') return;
     this.scene.tweens.killTweensOf(this.sprite);
-    this.scene.tweens.add({
+    return this.scene.tweens.add({
       targets: this.sprite,
       x: targetX,
       y: targetY,
@@ -34,9 +34,15 @@ export default class Marble {
     });
   }
 
+  setPositionDirect(x, y) {
+    if (!this.sprite || this.state === 'destroyed') return;
+    this.sprite.x = x;
+    this.sprite.y = y;
+  }
+
   destroy() {
     this.state = 'destroyed';
-    this.slotIndex = -1;
+    this.t = -1;
     if (this.sprite) {
       this.scene.tweens.killTweensOf(this.sprite);
       this.sprite.destroy();

@@ -17,13 +17,13 @@
     { "id": "b2", "col": 2, "row": 3, "z": 0, "color": "pink", "is_hidden": false },
     { "id": "b3", "col": 3, "row": 3, "z": 0, "color": "yellow", "is_hidden": false }
   ],
-  "trays": [
-    { "color": "pink", "capacity": 6 },
-    { "color": "blue", "capacity": 6 },
-    { "color": "green", "capacity": 6 },
-    { "color": "yellow", "capacity": 6 }
+  "box_columns": [
+    { "col": 0, "boxes": ["pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink"] },
+    { "col": 1, "boxes": ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue"] },
+    { "col": 2, "boxes": ["green", "green", "green", "green", "green", "green", "green", "green", "green"] },
+    { "col": 3, "boxes": ["yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow"] }
   ],
-  "queue_capacity": 14,
+  "conveyor_speed": 0.14,
   "gravity_flip_enabled": false,
   "magnet_count": 1
 }

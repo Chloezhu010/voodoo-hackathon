@@ -6,6 +6,7 @@ export default class EditorState {
     this.gridRows = 5;
     this.blocks = [];
     this.trays = [];
+    this.boxColumns = this._emptyBoxColumns();
     this.queueCapacity = 12;
     this.gravityFlipEnabled = false;
     this.magnetCount = 0;
@@ -79,16 +80,17 @@ export default class EditorState {
   }
 
   toLevelData() {
+    const sortedBlocks = [...this.blocks].sort((a, b) => (
+      a.row - b.row || a.col - b.col || a.z - b.z || a.id.localeCompare(b.id)
+    ));
     return {
       level_id: 99,
       name: 'Custom Level',
       difficulty: 0,
       board_size: { cols: this.gridCols, rows: this.gridRows },
-      blocks: [...this.blocks].sort((a, b) => (
-        a.row - b.row || a.col - b.col || a.z - b.z || a.id.localeCompare(b.id)
-      )),
-      trays: [...this.trays],
-      queue_capacity: this.queueCapacity,
+      blocks: sortedBlocks,
+      box_columns: this._deriveBoxColumns(sortedBlocks),
+      conveyor_speed: 0.06,
       gravity_flip_enabled: this.gravityFlipEnabled,
       magnet_count: this.magnetCount
     };
@@ -99,7 +101,6 @@ export default class EditorState {
     if (!data || typeof data !== 'object') throw new Error('Invalid JSON object.');
     if (!data.board_size) throw new Error('Missing board_size.');
     if (!Array.isArray(data.blocks)) throw new Error('Missing blocks array.');
-    if (!Array.isArray(data.trays)) throw new Error('Missing trays array.');
 
     this.gridCols = data.board_size.cols || 5;
     this.gridRows = data.board_size.rows || 5;
@@ -111,10 +112,15 @@ export default class EditorState {
       color: block.color,
       is_hidden: Boolean(block.is_hidden)
     }));
-    this.trays = data.trays.map((tray) => ({
-      color: tray.color,
-      capacity: tray.capacity || 6
-    }));
+    this.boxColumns = Array.isArray(data.box_columns)
+      ? data.box_columns.map((column) => ({
+        col: column.col,
+        boxes: [...column.boxes]
+      }))
+      : this._deriveBoxColumns(this.blocks);
+    this.trays = Array.isArray(data.trays)
+      ? data.trays.map((tray) => ({ color: tray.color, capacity: tray.capacity || 6 }))
+      : this._legacyTraysFromBoxColumns();
     this.queueCapacity = data.queue_capacity || 12;
     this.gravityFlipEnabled = Boolean(data.gravity_flip_enabled);
     this.magnetCount = data.magnet_count || 0;
@@ -123,5 +129,28 @@ export default class EditorState {
   clear() {
     this.blocks = [];
     this.trays = [];
+    this.boxColumns = this._emptyBoxColumns();
+  }
+
+  _emptyBoxColumns() {
+    return [0, 1, 2, 3].map((col) => ({ col, boxes: [] }));
+  }
+
+  _deriveBoxColumns(blocks) {
+    const columns = this._emptyBoxColumns();
+    let columnIndex = 0;
+    COLOR_IDS.forEach((color) => {
+      const blockCount = blocks.filter((block) => block.color === color).length;
+      for (let i = 0; i < blockCount * 3; i += 1) {
+        columns[columnIndex % columns.length].boxes.push(color);
+        columnIndex += 1;
+      }
+    });
+    return columns;
+  }
+
+  _legacyTraysFromBoxColumns() {
+    const seen = new Set(this.boxColumns.flatMap((column) => column.boxes));
+    return [...seen].map((color) => ({ color, capacity: 6 }));
   }
 }
