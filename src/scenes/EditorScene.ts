@@ -543,13 +543,23 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _handlePointerMove(pointer: Phaser.Input.Pointer): void {
-    if (!this.dragState) return;
     const drag = this.dragState;
-    if (Phaser.Math.Distance.Between(drag.startX, drag.startY, pointer.x, pointer.y) > 8) {
-      drag.hasMoved = true;
+    if (drag) {
+      if (Phaser.Math.Distance.Between(drag.startX, drag.startY, pointer.x, pointer.y) > 8) {
+        drag.hasMoved = true;
+      }
+      if (this._syncDragPreview(pointer, drag)) {
+        this.hoverCell = drag.targetCell;
+        this.renderAll();
+      }
+      return;
     }
-    if (this._syncDragPreview(pointer, drag)) {
-      this.hoverCell = drag.targetCell;
+    const cell = this._pointToGridCell(pointer.x, pointer.y);
+    const changed =
+      (cell?.col ?? null) !== (this.hoverCell?.col ?? null) ||
+      (cell?.row ?? null) !== (this.hoverCell?.row ?? null);
+    if (changed) {
+      this.hoverCell = cell;
       this.renderAll();
     }
   }
