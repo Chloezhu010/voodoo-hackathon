@@ -1,16 +1,33 @@
 import { COLOR_IDS, getColorDefinition } from '../config/colors.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { Block } from '../entities/Block.js';
+import {
+  analyzeLevelWithGemini,
+  getGeminiApiKey,
+  storeGeminiApiKey,
+  type GeminiBriefReport,
+} from '../services/geminiBrief.js';
 import { EditorState } from '../sim/editorState.js';
 import { validateLevel } from '../sim/levelLoader.js';
 import type { BlockRecord, ColorId } from '../sim/types.js';
 import { drawSkyBackground } from '../ui/casualStyle.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
-const GRID_START = { x: 120, y: 160 } as const;
-const EDITOR_BLOCK_SIZE = 72;
+const EDITOR_CELL_SIZE = 88;
+const GRID_START = {
+  x: (CONFIG.GAME_WIDTH - EDITOR_CELL_SIZE * 5) / 2,
+  y: 136,
+} as const;
+const EDITOR_BLOCK_SIZE = 66;
 const CONVEYOR_SPEED_OPTIONS = [0.12, 0.16, 0.18, 0.22, 0.26] as const;
 const BOX_COLUMN_MAX_BOXES = 6;
+const EDITOR_LAYOUT = {
+  palette: { x: 40, y: 590, width: 640, height: 150 },
+  workbench: { x: 40, y: 766, width: 640, height: 348 },
+  tools: { x: 70, y: 796, width: 258, height: 286 },
+  boxes: { x: 370, y: 796, width: 280, height: 286 },
+  ioY: 1180,
+} as const;
 
 interface HoverCell {
   col: number;
@@ -76,17 +93,17 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _drawHeader(): void {
-    this.root.add(this._makeButton(92, 48, 150, 54, '← MENU', UI.PANEL_DARK, () => {
+    this.root.add(this._makeButton(104, 48, 132, 50, '← MENU', UI.PANEL_DARK, () => {
       this.scene.start('MenuScene');
     }));
     this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 48, 'LEVEL EDITOR', {
-      fontSize: '34px', color: UI.TEXT, fontStyle: 'bold',
+      fontSize: '28px', color: UI.TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
-    this.root.add(this._makeButton(594, 48, 190, 54, 'PLAY TEST', UI.PRIMARY, () => this._playTest()));
+    this.root.add(this._makeButton(602, 48, 150, 50, 'PLAY TEST', UI.PRIMARY, () => this._playTest()));
   }
 
   private _drawGrid(): void {
-    const size = CONFIG.BLOCK_SIZE;
+    const size = EDITOR_CELL_SIZE;
     const width = this.editorState.gridCols * size;
     const height = this.editorState.gridRows * size;
     const layer = this.add.container(0, 0);
@@ -185,14 +202,17 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _drawPalette(): void {
-    const y = 720;
-    const buttonSize = 64;
+    const panel = EDITOR_LAYOUT.palette;
+    this.root.add(this._makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
+
+    const y = panel.y + 92;
+    const buttonSize = 62;
     const gap = 8;
     const total = COLOR_IDS.length + 2;
     const startX = (CONFIG.GAME_WIDTH - total * buttonSize - (total - 1) * gap) / 2 + buttonSize / 2;
 
-    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 670, 'COLOR PALETTE', {
-      fontSize: '20px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, panel.y + 28, 'COLOR PALETTE', {
+      fontSize: '18px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
 
     COLOR_IDS.forEach((colorId, index) => {
@@ -229,42 +249,44 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _drawLayerControls(): void {
-    const y = 805;
-    this.root.add(this.add.text(58, y, 'Z-LAYER', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
-    this.root.add(this._makeButton(158, y, 46, 44, '▼', UI.PANEL_DARK, () => {
+    const panel = EDITOR_LAYOUT.tools;
+    const workbench = EDITOR_LAYOUT.workbench;
+    const y = panel.y + 48;
+    this.root.add(this._makePanel(workbench.x, workbench.y, workbench.width, workbench.height, UI.PANEL_LIGHT));
+    const divider = this.add.graphics();
+    divider.lineStyle(2, UI.BLUE_STROKE, 0.18);
+    divider.lineBetween(350, workbench.y + 28, 350, workbench.y + workbench.height - 28);
+    this.root.add(divider);
+    this.root.add(this.add.text(panel.x, panel.y, 'TOOLS', {
+      fontSize: '18px', color: UI.DARK_TEXT, fontStyle: 'bold',
+    }).setOrigin(0, 0.5));
+    this.root.add(this.add.text(panel.x, y, 'Z-LAYER', { fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this._makeButton(panel.x + 118, y, 52, 44, '▼', UI.PANEL_DARK, () => {
       this.editorState.setActiveZ(this.editorState.activeZ - 1);
       this._persistState();
       this._renderAll();
     }));
-    this.root.add(this.add.text(210, y, `z=${this.editorState.activeZ}`, { fontSize: '22px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0.5));
-    this.root.add(this._makeButton(262, y, 46, 44, '▲', UI.PANEL_DARK, () => {
+    this.root.add(this.add.text(panel.x + 176, y, `z=${this.editorState.activeZ}`, { fontSize: '20px', color: UI.DARK_TEXT, fontStyle: 'bold' }).setOrigin(0.5));
+    this.root.add(this._makeButton(panel.x + 234, y, 52, 44, '▲', UI.PANEL_DARK, () => {
       this.editorState.setActiveZ(this.editorState.activeZ + 1);
       this._persistState();
       this._renderAll();
     }));
 
-    this.root.add(this.add.text(58, y + 42, 'Higher z = on top', { fontSize: '14px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this.add.text(panel.x, y + 40, 'Higher z appears on top.', {
+      fontSize: '15px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+    }).setOrigin(0, 0.5));
   }
 
   private _drawBoxColumnsPanel(): void {
-    const panelX = 330;
-    const panelY = 770;
-    const panelWidth = 340;
-    const panelHeight = 245;
-    const panel = this.add.graphics();
-    panel.fillStyle(0xf5fbff, 0.94);
-    panel.fillRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
-    panel.lineStyle(3, 0x4969a1, 0.35);
-    panel.strokeRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
-    this.root.add(panel);
-
-    this.root.add(this.add.text(panelX + 18, panelY + 20, 'BOX COLUMNS', {
+    const { x: panelX, y: panelY, width: panelWidth, height: panelHeight } = EDITOR_LAYOUT.boxes;
+    this.root.add(this.add.text(panelX, panelY, 'BOX COLUMNS', {
       fontSize: '17px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5));
 
     const validation = this.editorState.getValidationStatus();
     const statusColor = validation.isValid ? '#287a52' : '#b24058';
-    this.root.add(this.add.text(panelX + panelWidth - 18, panelY + 20, `${validation.isValid ? '✓' : '✗'} ${validation.summary}`, {
+    this.root.add(this.add.text(panelX + panelWidth, panelY, `${validation.isValid ? '✓' : '✗'} ${validation.summary}`, {
       fontSize: validation.summary.length > 18 ? '12px' : '14px',
       color: statusColor,
       fontStyle: 'bold',
@@ -272,25 +294,25 @@ export class EditorScene extends Phaser.Scene {
 
     const columns = this.editorState.toLevelData().box_columns;
     columns.forEach((column, index) => {
-      const colX = panelX + 43 + index * 82;
+      const colX = panelX + 34 + index * 70;
       const labelActive = this.editorState.activeColumn === index;
-      this.root.add(this.add.text(colX, panelY + 50, `COL ${column.col}`, {
+      this.root.add(this.add.text(colX, panelY + 38, `COL ${column.col}`, {
         fontSize: '13px',
         color: labelActive ? '#7442ba' : UI.MUTED_TEXT,
         fontStyle: 'bold',
       }).setOrigin(0.5));
 
-      const columnBg = this.add.rectangle(colX, panelY + 135, 64, 150, labelActive ? 0xe9ddff : 0xe4f2f8, 1);
+      const columnBg = this.add.rectangle(colX, panelY + 142, 56, 190, labelActive ? 0xe9ddff : 0xe4f2f8, 1);
       columnBg.setStrokeStyle(labelActive ? 3 : 2, labelActive ? UI.PRIMARY_DARK : UI.BLUE_STROKE, labelActive ? 0.8 : 0.22);
       this.root.add(columnBg);
 
       column.boxes.slice(0, BOX_COLUMN_MAX_BOXES).forEach((colorId, boxIndex) => {
-        this._drawEditableBox(colX, panelY + 72 + boxIndex * 20, index, boxIndex, colorId);
+        this._drawEditableBox(colX, panelY + 68 + boxIndex * 28, index, boxIndex, colorId);
       });
 
       const canAdd = column.boxes.length < BOX_COLUMN_MAX_BOXES;
-      const addY = panelY + 72 + Math.min(column.boxes.length, BOX_COLUMN_MAX_BOXES) * 20;
-      this.root.add(this._makeButton(colX, addY, 48, 18, '+', canAdd ? UI.PANEL_DARK : 0x8794aa, () => {
+      const addY = panelY + 68 + Math.min(column.boxes.length, BOX_COLUMN_MAX_BOXES) * 28;
+      this.root.add(this._makeButton(colX, addY, 52, 24, '+', canAdd ? UI.PANEL_DARK : 0x8794aa, () => {
         if (!canAdd) return;
         this.editorState.setActiveColumn(index);
         this.editorState.addBoxToColumn(index);
@@ -299,12 +321,12 @@ export class EditorScene extends Phaser.Scene {
       }));
     });
 
-    this.root.add(this._makeButton(panelX + 73, panelY + panelHeight - 25, 108, 34, 'AUTO FILL', UI.PANEL_DARK, () => {
+    this.root.add(this._makeButton(panelX + 70, panelY + panelHeight - 22, 128, 42, 'AUTO FILL', UI.PANEL_DARK, () => {
       this.editorState.syncBoxColumnsToBlocks();
       this._persistState();
       this._renderAll();
     }));
-    this.root.add(this._makeButton(panelX + 198, panelY + panelHeight - 25, 118, 34, 'CLEAR COL', 0x923653, () => {
+    this.root.add(this._makeButton(panelX + 212, panelY + panelHeight - 22, 128, 42, 'CLEAR COL', 0x923653, () => {
       this.editorState.clearColumn(this.editorState.activeColumn);
       this._persistState();
       this._renderAll();
@@ -313,12 +335,12 @@ export class EditorScene extends Phaser.Scene {
 
   private _drawEditableBox(x: number, y: number, columnIndex: number, boxIndex: number, colorId: ColorId): void {
     const color = getColorDefinition(colorId);
-    const box = this.add.rectangle(x, y, 54, 16, color.hex, 1);
+    const box = this.add.rectangle(x, y, 54, 22, color.hex, 1);
     box.setStrokeStyle(2, 0xffffff, 0.6);
     const label = this.add.text(x, y, colorId.charAt(0).toUpperCase(), {
-      fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+      fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
-    const hit = makeWorldHitZone(this, x, y, 62, 22, null);
+    const hit = makeWorldHitZone(this, x, y, 64, 28, null);
     let longPressTriggered = false;
     let timer: Phaser.Time.TimerEvent | null = null;
     hit.on('pointerdown', () => {
@@ -347,38 +369,41 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _drawParams(): void {
-    const y = 1050;
-    this.root.add(this.add.text(58, y, 'CONVEYOR', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    const panel = EDITOR_LAYOUT.tools;
+    const y = panel.y + 126;
+    this.root.add(this.add.text(panel.x, y, 'CONVEYOR', { fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
 
     CONVEYOR_SPEED_OPTIONS.forEach((value, index) => {
-      const x = 148 + index * 58;
+      const x = panel.x + 24 + index * 52;
       const active = Math.abs(this.editorState.conveyorSpeed - value) < 0.001;
-      this.root.add(this._makeButton(x, y, 50, 44, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
+      this.root.add(this._makeButton(x, y + 38, 48, 38, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
         this.editorState.setConveyorSpeed(value);
         this._persistState();
         this._renderAll();
       }));
     });
 
-    const checkX = 455;
-    const box = this.add.rectangle(checkX, y, 30, 30, this.editorState.gravityFlipEnabled ? UI.PRIMARY : UI.PANEL_DARK, 1);
+    const checkX = panel.x + 18;
+    const checkY = y + 86;
+    const box = this.add.rectangle(checkX, checkY, 30, 30, this.editorState.gravityFlipEnabled ? UI.PRIMARY : UI.PANEL_DARK, 1);
     box.setStrokeStyle(3, 0xffffff, 0.5);
-    const boxHit = makeWorldHitZone(this, checkX, y, 50, 50, () => {
+    const boxHit = makeWorldHitZone(this, checkX, checkY, 50, 50, () => {
       this.editorState.gravityFlipEnabled = !this.editorState.gravityFlipEnabled;
       this._persistState();
       this._renderAll();
     });
     this.root.add([box, boxHit]);
-    this.root.add(this.add.text(checkX + 26, y, 'GRAV FLIP', { fontSize: '18px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this.add.text(checkX + 26, checkY, 'GRAV FLIP', { fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
 
-    this.root.add(this.add.text(58, y + 58, 'MAGNET', { fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
-    this.root.add(this._makeButton(160, y + 58, 46, 42, '-', UI.PANEL_DARK, () => {
+    const magnetY = y + 128;
+    this.root.add(this.add.text(panel.x, magnetY, 'MAGNET', { fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.root.add(this._makeButton(panel.x + 116, magnetY, 48, 40, '-', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount - 1);
       this._persistState();
       this._renderAll();
     }));
-    this.root.add(this.add.text(215, y + 58, String(this.editorState.magnetCount), { fontSize: '24px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0.5));
-    this.root.add(this._makeButton(270, y + 58, 46, 42, '+', UI.PANEL_DARK, () => {
+    this.root.add(this.add.text(panel.x + 174, magnetY, String(this.editorState.magnetCount), { fontSize: '22px', color: UI.DARK_TEXT, fontStyle: 'bold' }).setOrigin(0.5));
+    this.root.add(this._makeButton(panel.x + 232, magnetY, 48, 40, '+', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount + 1);
       this._persistState();
       this._renderAll();
@@ -386,14 +411,25 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _drawIO(): void {
-    const y = 1190;
-    this.root.add(this._makeButton(92, y, 130, 50, 'EXPORT', UI.PANEL_DARK, () => this._showExportModal()));
-    this.root.add(this._makeButton(242, y, 130, 50, 'AI BRIEF', UI.PANEL_DARK, () => this._showAgentBriefModal()));
-    this.root.add(this._makeButton(392, y, 130, 50, 'IMPORT', UI.PANEL_DARK, () => this._showImportModal()));
-    this.root.add(this._makeButton(562, y, 150, 50, 'CLEAR ALL', 0x923653, () => this._showConfirmClear()));
-    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 1242, 'Export JSON is playable; AI Brief is readable design context.', {
-      fontSize: '17px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+    const y = EDITOR_LAYOUT.ioY;
+    this.root.add(this._makeButton(104, y, 138, 54, 'EXPORT', UI.PANEL_DARK, () => this._showExportModal()));
+    this.root.add(this._makeButton(256, y, 138, 54, 'AI BRIEF', UI.PANEL_DARK, () => this._showAgentBriefModal()));
+    this.root.add(this._makeButton(408, y, 138, 54, 'IMPORT', UI.PANEL_DARK, () => this._showImportModal()));
+    this.root.add(this._makeButton(572, y, 150, 54, 'CLEAR ALL', 0x923653, () => this._showConfirmClear()));
+    this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, y + 52, 'Export JSON is playable; AI Brief is readable design context.', {
+      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
+  }
+
+  private _makePanel(
+    x: number, y: number, width: number, height: number, fillColor: number,
+  ): Phaser.GameObjects.Graphics {
+    const panel = this.add.graphics();
+    panel.fillStyle(fillColor, 0.94);
+    panel.fillRoundedRect(x, y, width, height, 14);
+    panel.lineStyle(3, UI.BLUE_STROKE, 0.28);
+    panel.strokeRoundedRect(x, y, width, height, 14);
+    return panel;
   }
 
   private _makeSquareSwatch(
@@ -428,7 +464,7 @@ export class EditorScene extends Phaser.Scene {
     bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 14);
 
     const text = this.add.text(0, 0, label, {
-      fontSize: label.length > 10 ? '18px' : '20px',
+      fontSize: this._buttonFontSize(width, label),
       color: fillColor === UI.PANEL || fillColor === UI.PANEL_LIGHT ? UI.DARK_TEXT : '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -447,10 +483,19 @@ export class EditorScene extends Phaser.Scene {
     return container;
   }
 
+  private _buttonFontSize(width: number, label: string): string {
+    if (width <= 52 && label.length >= 4) return '14px';
+    if (width <= 64) return '18px';
+    return label.length > 10 ? '18px' : '20px';
+  }
+
   private _showExportModal(): void {
     const json = this.editorState.exportJSON();
     const modal = this._makeModal('Exported JSON');
     const display = json.length > 2600 ? `${json.slice(0, 2600)}\n...` : json;
+    const outputBg = this.add.rectangle(0, -40, 540, 520, 0x151522, 1);
+    outputBg.setStrokeStyle(2, 0xffffff, 0.14);
+    modal.add(outputBg);
     const text = this.add.text(-270, -275, display, {
       fontSize: '13px', color: '#a0ffa0', fontStyle: 'bold', wordWrap: { width: 540 },
     }).setOrigin(0, 0);
@@ -517,30 +562,127 @@ export class EditorScene extends Phaser.Scene {
     modal.add(this._makeButton(205, 336, 150, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
   }
 
-  private _showAgentBriefModal(): void {
+  private async _showAgentBriefModal(): Promise<void> {
     const brief = this.editorState.getAgentBrief();
     const modal = this._makeModal('AI Level Brief');
-    modal.add(this.add.text(-260, -260, brief, {
-      fontSize: '18px', color: UI.DARK_TEXT, fontStyle: 'bold', wordWrap: { width: 520 },
-    }).setOrigin(0, 0));
-    modal.add(this.add.text(-260, 120, this.editorState.exportJSON(), {
-      fontSize: '12px', color: '#4d668f', fontStyle: 'bold', wordWrap: { width: 520 },
-    }).setOrigin(0, 0));
-    modal.add(this._makeButton(-115, 336, 190, 58, 'COPY', UI.PRIMARY, async () => {
+    const copyState = { text: brief };
+    const status = this.add.text(0, -310, '', {
+      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 520 },
+    }).setOrigin(0.5);
+    const content = this.add.text(-260, -270, brief, {
+      fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold', wordWrap: { width: 520 },
+    }).setOrigin(0, 0);
+    modal.add([status, content]);
+
+    const runAnalysis = () => this._runGeminiBriefAnalysis(brief, status, content, copyState);
+    this._addAgentBriefButtons(modal, status, copyState, runAnalysis);
+    await runAnalysis();
+  }
+
+  private _addAgentBriefButtons(
+    modal: Phaser.GameObjects.Container,
+    status: Phaser.GameObjects.Text,
+    copyState: { text: string },
+    runAnalysis: () => Promise<void>,
+  ): void {
+    modal.add(this._makeButton(-230, 336, 124, 58, 'SET KEY', UI.PANEL_DARK, () => {
+      const apiKey = window.prompt('Gemini API key');
+      if (!apiKey) return;
+      storeGeminiApiKey(apiKey);
+      status.setText('Gemini API key saved locally.');
+    }));
+    modal.add(this._makeButton(-76, 336, 124, 58, 'RUN', UI.PRIMARY, () => {
+      void runAnalysis();
+    }));
+    modal.add(this._makeButton(76, 336, 124, 58, 'COPY', UI.PANEL_DARK, async () => {
       try {
-        await navigator.clipboard.writeText(`${brief}\n\n${this.editorState.exportJSON()}`);
+        await navigator.clipboard.writeText(copyState.text);
         this._showToast('Copied AI brief');
       } catch {
         this._showToast('Clipboard unavailable');
       }
     }));
-    modal.add(this._makeButton(115, 336, 190, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
+    modal.add(this._makeButton(230, 336, 124, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
+  }
+
+  private async _runGeminiBriefAnalysis(
+    brief: string,
+    status: Phaser.GameObjects.Text,
+    content: Phaser.GameObjects.Text,
+    copyState: { text: string },
+  ): Promise<void> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      status.setText('Missing Gemini API key. Set VITE_GEMINI_API_KEY or use SET KEY.');
+      return;
+    }
+
+    status.setText('Analyzing with gemini-3-flash-preview...');
+    try {
+      const report = await analyzeLevelWithGemini(
+        this.editorState.toLevelData(),
+        this.editorState.getValidationStatus(),
+        brief,
+        apiKey,
+        {
+          onDelta: (text) => {
+            copyState.text = text;
+            content.setText(text);
+            status.setText('Streaming structured AI brief...');
+          },
+        },
+      );
+      copyState.text = JSON.stringify(report, null, 2);
+      content.setText(this._formatGeminiBrief(report));
+      status.setText('Structured AI brief ready.');
+    } catch (error) {
+      status.setText((error as Error).message);
+    }
+  }
+
+  private _formatGeminiBrief(report: GeminiBriefReport): string {
+    const roles = report.roleReviews
+      .map((review) => `${this._roleLabel(review.role)} [${review.severity}]: ${review.finding}`)
+      .join('\n');
+    const stuck = report.likelyStuckPoints.map((item) => `- ${item}`).join('\n') || '- No clear stuck points.';
+    const changes = report.recommendedChanges
+      .map((item) => `- ${item.priority}: ${item.change} (${item.reason})`)
+      .join('\n') || '- None.';
+
+    return [
+      `Verdict: ${report.verdict} / ${report.progressionPlacement} / difficulty ${report.difficultyScore}/10`,
+      `Confidence: ${Math.round(report.confidence * 100)}%`,
+      '',
+      report.teamSummary,
+      '',
+      `Solvability: ${report.solvability.status}`,
+      report.solvability.reason,
+      '',
+      'Team review:',
+      roles,
+      '',
+      'Likely stuck points:',
+      stuck,
+      '',
+      'Recommended changes:',
+      changes,
+    ].join('\n');
+  }
+
+  private _roleLabel(role: GeminiBriefReport['roleReviews'][number]['role']): string {
+    return {
+      level_designer: 'Level Designer',
+      gameplay_tester: 'Gameplay Tester',
+      product_manager: 'Product Manager',
+      balancing_critic: 'Balancing Critic',
+      iteration_partner: 'Iteration Partner',
+    }[role];
   }
 
   private _showConfirmClear(): void {
     const modal = this._makeModal('Clear All?');
     modal.add(this.add.text(0, -40, 'Remove all blocks from the editor?', {
-      fontSize: '24px', color: UI.TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
+      fontSize: '24px', color: UI.DARK_TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
     }).setOrigin(0.5));
     modal.add(this._makeButton(-120, 125, 190, 62, 'CLEAR', 0x923653, () => {
       this.editorState.clear();
@@ -560,11 +702,11 @@ export class EditorScene extends Phaser.Scene {
     overlay.setInteractive();
     modal.add(overlay);
 
-    const panel = this.add.rectangle(0, 0, 600, 820, UI.PANEL, 1);
+    const panel = this.add.rectangle(0, 0, 600, 820, UI.PANEL_LIGHT, 1);
     panel.setStrokeStyle(3, 0xffffff, 0.18);
     modal.add(panel);
 
-    modal.add(this.add.text(0, -365, title, { fontSize: '32px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0.5));
+    modal.add(this.add.text(0, -365, title, { fontSize: '32px', color: UI.DARK_TEXT, fontStyle: 'bold' }).setOrigin(0.5));
 
     this.modal = modal;
     return modal;
@@ -651,8 +793,8 @@ export class EditorScene extends Phaser.Scene {
 
   private _gridCenter(col: number, row: number): { x: number; y: number } {
     return {
-      x: GRID_START.x + col * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2,
-      y: GRID_START.y + row * CONFIG.BLOCK_SIZE + CONFIG.BLOCK_SIZE / 2,
+      x: GRID_START.x + col * EDITOR_CELL_SIZE + EDITOR_CELL_SIZE / 2,
+      y: GRID_START.y + row * EDITOR_CELL_SIZE + EDITOR_CELL_SIZE / 2,
     };
   }
 
