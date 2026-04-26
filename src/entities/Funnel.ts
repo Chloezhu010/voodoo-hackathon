@@ -325,7 +325,7 @@ export class Funnel {
   private _floorY(): number {
     const conveyor = CONFIG.CONVEYOR;
     const conveyorTopY = conveyor.AREA.y + conveyor.TRACK_TOP_OFFSET;
-    return conveyorTopY - CONFIG.MARBLE_DISPLAY_SIZE / 2 - 8;
+    return conveyorTopY - CONFIG.MARBLE_DISPLAY_SIZE / 2 - 28;
   }
 
   private _centerX(): number {
