@@ -5,14 +5,11 @@
   "board_size": { "cols": 5, "rows": 5 },
   "blocks": [
     { "id": "b1", "col": 1, "row": 1, "z": 0, "color": "pink", "is_hidden": false },
-    { "id": "b2", "col": 2, "row": 1, "z": 0, "color": "pink", "is_hidden": false },
-    { "id": "b3", "col": 3, "row": 1, "z": 0, "color": "blue", "is_hidden": false },
+    { "id": "b2", "col": 2, "row": 1, "z": 0, "color": "blue", "is_hidden": false },
+    { "id": "b3", "col": 3, "row": 1, "z": 0, "color": "pink", "is_hidden": false },
     { "id": "b4", "col": 1, "row": 2, "z": 0, "color": "blue", "is_hidden": false },
-    { "id": "b5", "col": 2, "row": 2, "z": 0, "color": "green", "is_hidden": false },
-    { "id": "b6", "col": 3, "row": 2, "z": 0, "color": "green", "is_hidden": false },
-    { "id": "b7", "col": 2, "row": 3, "z": 0, "color": "pink", "is_hidden": false },
-    { "id": "b8", "col": 3, "row": 3, "z": 0, "color": "blue", "is_hidden": false },
-    { "id": "b9", "col": 1, "row": 3, "z": 0, "color": "green", "is_hidden": false }
+    { "id": "b5", "col": 2, "row": 2, "z": 0, "color": "pink", "is_hidden": false },
+    { "id": "b6", "col": 3, "row": 2, "z": 0, "color": "blue", "is_hidden": false }
   ],
   "walls": [
     { "col": 1, "row": 0 },
@@ -26,12 +23,12 @@
     { "col": 4, "row": 3 }
   ],
   "box_columns": [
-    { "col": 0, "boxes": ["pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink"] },
-    { "col": 1, "boxes": ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue"] },
-    { "col": 2, "boxes": ["green", "green", "green", "green", "green", "green", "green", "green", "green"] },
-    { "col": 3, "boxes": [] }
+    { "col": 0, "boxes": ["pink", "pink", "blue", "blue", "pink"] },
+    { "col": 1, "boxes": ["blue", "blue", "pink", "pink"] },
+    { "col": 2, "boxes": ["pink", "pink", "blue", "blue"] },
+    { "col": 3, "boxes": ["blue", "blue", "pink", "pink", "blue"] }
   ],
-  "conveyor_speed": 0.2,
+  "conveyor_speed": 0.18,
   "gravity_flip_enabled": false,
   "magnet_count": 0
 }
