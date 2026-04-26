@@ -10,17 +10,18 @@ export class EditorJsonModals {
     const json = this.scene.editorState.exportJSON();
     const modal = this.scene.makeModal('Exported JSON');
     const display = json.length > 2600 ? `${json.slice(0, 2600)}\n...` : json;
-    const outputBg = this.scene.add.rectangle(0, -40, 540, 520, 0x151522, 1);
+    const outputBg = this.scene.add.rectangle(0, -48, 640, 540, 0x151522, 1);
     outputBg.setStrokeStyle(2, 0xffffff, 0.14);
     modal.add(outputBg);
-    modal.add(this.scene.add.text(-270, -275, display, {
-      fontSize: '13px',
+    modal.add(this.scene.add.text(-310, -300, display, {
+      fontSize: '16px',
       color: '#a0ffa0',
       fontStyle: 'bold',
-      wordWrap: { width: 540 },
+      lineSpacing: 3,
+      wordWrap: { width: 620 },
     }).setOrigin(0, 0));
 
-    modal.add(this.scene.makeButton(-115, 336, 190, 58, 'COPY', UI.PRIMARY, async () => {
+    modal.add(this.scene.makeButton(-125, 352, 210, 62, 'COPY', UI.PRIMARY, async () => {
       try {
         await navigator.clipboard.writeText(json);
         this.scene.showToast('Copied JSON');
@@ -28,29 +29,30 @@ export class EditorJsonModals {
         this.scene.showToast('Clipboard unavailable');
       }
     }));
-    modal.add(this.scene.makeButton(115, 336, 190, 58, 'CLOSE', UI.PANEL_DARK, () => this.scene.closeModal()));
+    modal.add(this.scene.makeButton(125, 352, 210, 62, 'CLOSE', UI.PANEL_DARK, () => this.scene.closeModal()));
   }
 
   showImport(): void {
     const modal = this.scene.makeModal('Import JSON');
-    const inputBg = this.scene.add.rectangle(0, -40, 540, 520, 0x151522, 1);
+    const inputBg = this.scene.add.rectangle(0, -48, 640, 540, 0x151522, 1);
     inputBg.setStrokeStyle(2, 0xffffff, 0.14);
     modal.add(inputBg);
 
-    const inputText = this.scene.add.text(-255, -285, 'Paste or type JSON here', {
-      fontSize: '13px',
+    const inputText = this.scene.add.text(-310, -300, 'Paste or type JSON here', {
+      fontSize: '16px',
       color: '#8f8fa8',
       fontStyle: 'bold',
-      wordWrap: { width: 510 },
+      lineSpacing: 3,
+      wordWrap: { width: 620 },
     }).setOrigin(0, 0);
     modal.add(inputText);
 
     const errorText = this.scene.add.text(0, 244, '', {
-      fontSize: '15px',
+      fontSize: '17px',
       color: '#ff9a9a',
       fontStyle: 'bold',
       align: 'center',
-      wordWrap: { width: 520 },
+      wordWrap: { width: 620 },
     }).setOrigin(0.5);
     modal.add(errorText);
 
@@ -61,13 +63,13 @@ export class EditorJsonModals {
       this.scene.refreshInputText();
     });
 
-    modal.add(this.scene.makeButton(-205, 336, 150, 58, 'PASTE', UI.PANEL_DARK, async () => {
+    modal.add(this.scene.makeButton(-230, 352, 170, 62, 'PASTE', UI.PANEL_DARK, async () => {
       await this._paste(errorText);
     }));
-    modal.add(this.scene.makeButton(0, 336, 150, 58, 'LOAD', UI.PRIMARY, () => {
+    modal.add(this.scene.makeButton(0, 352, 170, 62, 'LOAD', UI.PRIMARY, () => {
       this._load(errorText);
     }));
-    modal.add(this.scene.makeButton(205, 336, 150, 58, 'CLOSE', UI.PANEL_DARK, () => this.scene.closeModal()));
+    modal.add(this.scene.makeButton(230, 352, 170, 62, 'CLOSE', UI.PANEL_DARK, () => this.scene.closeModal()));
   }
 
   showConfirmClear(): void {

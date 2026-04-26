@@ -4,6 +4,7 @@ import { Block } from '../entities/Block.js';
 import { EditorState } from '../sim/editorState.js';
 import { validateLevel } from '../sim/levelLoader.js';
 import type { BlockRecord, ColorId } from '../sim/types.js';
+import { AgentBriefOverlay } from '../ui/agentBriefOverlay.js';
 import { drawSkyBackground } from '../ui/casualStyle.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
@@ -32,6 +33,7 @@ export class EditorScene extends Phaser.Scene {
   lastPlacedCell: HoverCell | null = null;
   root!: Phaser.GameObjects.Container;
   briefPanel!: EditorAgentBriefPanel;
+  briefOverlay!: AgentBriefOverlay;
   jsonModals!: EditorJsonModals;
 
   constructor() {
@@ -64,7 +66,17 @@ export class EditorScene extends Phaser.Scene {
     this.activeTextInput = null;
     this.dragState = null;
     this.lastPlacedCell = null;
-    this.briefPanel = new EditorAgentBriefPanel(this);
+    this.briefOverlay = new AgentBriefOverlay({
+      getEditorContext: () => ({
+        levelData: this.editorState.toLevelData(),
+        validation: this.editorState.getValidationStatus(),
+        localBrief: this.editorState.getAgentBrief(),
+      }),
+      onToast: (msg) => this.showToast(msg),
+      onReportUpdate: () => this.renderAll(),
+    });
+    this.briefOverlay.mount();
+    this.briefPanel = new EditorAgentBriefPanel(this.briefOverlay);
     this.jsonModals = new EditorJsonModals(this);
 
     if (window._editorStateSnapshot) {
@@ -83,6 +95,7 @@ export class EditorScene extends Phaser.Scene {
       this.input.off('pointermove', this._handlePointerMove, this);
       this.input.off('pointerup', this._handlePointerUp, this);
       this._clearDragPreview();
+      this.briefOverlay?.unmount();
       this.scale.setGameSize(CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
     });
 
@@ -200,10 +213,10 @@ export class EditorScene extends Phaser.Scene {
     this.root.add(this.makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
 
     this.root.add(this.add.text(panel.x + panel.width / 2, panel.y + 26, 'DRAG', {
-      fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold',
+      fontSize: '22px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
     this.root.add(this.add.text(panel.x + panel.width / 2, panel.y + 48, 'BLOCKS', {
-      fontSize: '14px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
 
     COLOR_IDS.forEach((colorId, index) => {
@@ -211,7 +224,7 @@ export class EditorScene extends Phaser.Scene {
       const y = panel.y + 88 + index * 63;
       const color = getColorDefinition(colorId);
       const active = this.editorState.activeColor === colorId && !this.editorState.eraseMode;
-      this.root.add(this._makeDraggableColorSwatch(x, y, 54, colorId, color.hex, color.label, active));
+      this.root.add(this._makeDraggableColorSwatch(x, y, 60, colorId, color.hex, color.label, active));
     });
   }
 
@@ -259,7 +272,7 @@ export class EditorScene extends Phaser.Scene {
     const y = panel.y + 88;
     this.root.add(this.makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
     this.root.add(this.add.text(centerX, panel.y + 26, 'TOOLS', {
-      fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold',
+      fontSize: '22px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
     this.root.add(this.add.text(centerX, panel.y + 52, `z=${this.editorState.activeZ}`, {
       fontSize: '20px', color: UI.DARK_TEXT, fontStyle: 'bold',
@@ -300,13 +313,13 @@ export class EditorScene extends Phaser.Scene {
     const { x: panelX, y: panelY, width: panelWidth, height: panelHeight } = EDITOR_LAYOUT.boxes;
     this.root.add(this.makePanel(panelX, panelY, panelWidth, panelHeight, UI.PANEL_LIGHT));
     this.root.add(this.add.text(panelX + 24, panelY + 28, 'BOX COLUMNS', {
-      fontSize: '17px', color: UI.DARK_TEXT, fontStyle: 'bold',
+      fontSize: '22px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5));
 
     const validation = this.editorState.getValidationStatus();
     const statusColor = validation.isValid ? '#287a52' : '#b24058';
     this.root.add(this.add.text(panelX + panelWidth - 24, panelY + 28, `${validation.isValid ? '✓' : '✗'} ${validation.summary}`, {
-      fontSize: validation.summary.length > 18 ? '12px' : '14px',
+      fontSize: validation.summary.length > 18 ? '15px' : '17px',
       color: statusColor,
       fontStyle: 'bold',
     }).setOrigin(1, 0.5));
@@ -316,7 +329,7 @@ export class EditorScene extends Phaser.Scene {
       const colX = panelX + 76 + index * 146;
       const labelActive = this.editorState.activeColumn === index;
       this.root.add(this.add.text(colX, panelY + 68, `COL ${column.col}`, {
-        fontSize: '13px',
+        fontSize: '16px',
         color: labelActive ? '#7442ba' : UI.MUTED_TEXT,
         fontStyle: 'bold',
       }).setOrigin(0.5));
@@ -357,7 +370,7 @@ export class EditorScene extends Phaser.Scene {
     const box = this.add.rectangle(x, y, 78, 24, color.hex, 1);
     box.setStrokeStyle(2, 0xffffff, 0.6);
     const label = this.add.text(x, y, colorId.charAt(0).toUpperCase(), {
-      fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+      fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     const hit = makeWorldHitZone(this, x, y, 88, 30, null);
     let longPressTriggered = false;
@@ -392,7 +405,7 @@ export class EditorScene extends Phaser.Scene {
     const centerX = panel.x + panel.width / 2;
     const y = panel.y + 348;
     this.root.add(this.add.text(centerX, y, 'SPEED', {
-      fontSize: '14px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
 
     CONVEYOR_SPEED_OPTIONS.forEach((value, index) => {
@@ -417,12 +430,12 @@ export class EditorScene extends Phaser.Scene {
     });
     this.root.add([box, boxHit]);
     this.root.add(this.add.text(checkX + 23, checkY, 'FLIP', {
-      fontSize: '14px', color: UI.DARK_TEXT, fontStyle: 'bold',
+      fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5));
 
     const magnetY = panel.y + 506;
     this.root.add(this.add.text(centerX, magnetY - 22, 'MAGNET', {
-      fontSize: '13px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
     this.root.add(this.makeButton(centerX - 28, magnetY, 28, 28, '-', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount - 1);
@@ -448,7 +461,7 @@ export class EditorScene extends Phaser.Scene {
     this.root.add(this.makeButton(408, y, 138, 54, 'IMPORT', UI.PANEL_DARK, () => this.jsonModals.showImport()));
     this.root.add(this.makeButton(572, y, 150, 54, 'CLEAR ALL', 0x923653, () => this.jsonModals.showConfirmClear()));
     this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, y + 52, 'Export JSON is playable; AI Brief is readable design context.', {
-      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
+      fontSize: '18px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
   }
 
@@ -630,7 +643,7 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
-  makeModal(title: string, width = 600, height = 820): Phaser.GameObjects.Container {
+  makeModal(title: string, width = 720, height = 860): Phaser.GameObjects.Container {
     this.closeModal();
     const modal = this.add.container(EDITOR_CANVAS_WIDTH / 2, CONFIG.GAME_HEIGHT / 2);
     modal.setDepth(2000);
