@@ -117,7 +117,16 @@ export class Box {
 
     if (hasArtTexture(this.scene, marbleKey)) {
       const filled = this.scene.add.image(marker.x, marker.y, marbleKey).setDisplaySize(28, 28);
+      filled.setScale(0.35);
+      filled.setAlpha(0.55);
       this.container.add(filled);
+      this.scene.tweens.add({
+        targets: filled,
+        scale: 1,
+        alpha: 1,
+        duration: 180,
+        ease: 'Back.easeOut',
+      });
     } else {
       const filled = this.scene.add.graphics();
       filled.fillStyle(0x23385f, 0.2);
@@ -128,9 +137,17 @@ export class Box {
       filled.fillCircle(marker.x - 4, marker.y - 4, 4);
       filled.lineStyle(2, 0xffffff, 0.36);
       filled.strokeCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
+      filled.setAlpha(0.55);
       this.container.add(filled);
+      this.scene.tweens.add({
+        targets: filled,
+        alpha: 1,
+        duration: 150,
+        ease: 'Quad.easeOut',
+      });
     }
 
+    this._playCollectEffect(marker, color.hex);
     this.visual_filled += 1;
     this.scene.tweens.add({
       targets: this.container,
@@ -146,7 +163,44 @@ export class Box {
     }
   }
 
+  private _playCollectEffect(marker: SlotMarker, color: number): void {
+    const worldX = this.container.x + marker.x;
+    const worldY = this.container.y + marker.y;
+    const ring = this.scene.add.circle(worldX, worldY, 8, 0xffffff, 0);
+    ring.setStrokeStyle(4, 0xffffff, 0.78);
+    ring.setDepth(96);
+
+    this.scene.tweens.add({
+      targets: ring,
+      scale: 2.3,
+      alpha: 0,
+      duration: 220,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (Math.PI * 2 * i) / 8;
+      const distance = 18 + (i % 2) * 8;
+      const particle = this.scene.add.circle(worldX, worldY, 4, color, 0.95);
+      particle.setStrokeStyle(1, 0xffffff, 0.45);
+      particle.setDepth(97);
+
+      this.scene.tweens.add({
+        targets: particle,
+        x: worldX + Math.cos(angle) * distance,
+        y: worldY + Math.sin(angle) * distance,
+        scale: 0.25,
+        alpha: 0,
+        duration: 240,
+        ease: 'Cubic.easeOut',
+        onComplete: () => particle.destroy(),
+      });
+    }
+  }
+
   destroyWithAnimation(onComplete: (() => void) | null = null): void {
+    this._playDestroyStars();
     this.scene.tweens.add({
       targets: this.container,
       scale: 1.35,
@@ -158,6 +212,41 @@ export class Box {
         if (onComplete) onComplete();
       },
     });
+  }
+
+  private _playDestroyStars(): void {
+    const originX = this.container.x;
+    const originY = this.container.y;
+    const starColors = [0xffffff, 0xfff07a, 0xffd236];
+
+    for (let i = 0; i < 16; i += 1) {
+      const angle = -Math.PI / 2 + (i - 7.5) * 0.28;
+      const distance = 58 + (i % 4) * 16;
+      const star = this.scene.add.star(
+        originX,
+        originY - 4,
+        5,
+        6,
+        15,
+        starColors[i % starColors.length],
+        0.95,
+      );
+      star.setDepth(102);
+      star.setRotation(angle * 0.35);
+      star.setScale(0.55);
+
+      this.scene.tweens.add({
+        targets: star,
+        x: originX + Math.cos(angle) * distance,
+        y: originY + Math.sin(angle) * distance - 18,
+        scale: { from: 0.55, to: 1.25 },
+        rotation: star.rotation + 2.2,
+        alpha: 0,
+        duration: 520,
+        ease: 'Cubic.easeOut',
+        onComplete: () => star.destroy(),
+      });
+    }
   }
 
   setPosition(x: number, y: number): void {

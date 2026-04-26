@@ -480,29 +480,49 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < CONFIG.MARBLES_PER_BLOCK; i += 1) {
       this.time.delayedCall(i * 70, () => {
         if (this.isEnding) return;
+        const gridCol = i % 3;
+        const gridRow = Math.floor(i / 3);
+        const spawnX = startX + (gridCol - 1) * 11 + Phaser.Math.Between(-2, 2);
+        const spawnY = startY + (gridRow - 1) * 7 + Phaser.Math.Between(-2, 2);
         const marble = new Marble(
           this,
-          startX + Phaser.Math.Between(-30, 30),
-          startY + Phaser.Math.Between(-8, 8),
+          spawnX,
+          spawnY,
           color,
         );
         this.marbles.push(marble);
-        const funnelSlot = this.funnel?.reserveSlot(marble);
-        const mouth = this.funnel?.getMouthPosition(funnelSlot);
-        if (!funnelSlot || !mouth) return;
-        marble.state = 'moving-to-funnel-mouth';
-        marble.flyTo(
-          mouth.x,
-          mouth.y,
-          CONFIG.MARBLE_TO_FUNNEL_MOUTH_DURATION,
-          'Linear',
-          () => {
-            if (this.isEnding || marble.state === 'destroyed') return;
-            this.funnel?.dropMarble(marble, funnelSlot);
-          },
-        );
+        this._dropMarbleFromBlock(marble, startX);
       });
     }
+  }
+
+  private _dropMarbleFromBlock(marble: Marble, sourceX: number): void {
+    const funnelSlot = this.funnel?.reserveSlot(marble, sourceX);
+    const mouth = this.funnel?.getMouthPosition(funnelSlot);
+    if (!funnelSlot || !mouth || !marble.sprite) return;
+
+    const startX = marble.sprite.x;
+    const startY = marble.sprite.y;
+
+    marble.state = 'moving-to-funnel-mouth';
+    marble.followPath(
+      CONFIG.MARBLE_TO_FUNNEL_MOUTH_DURATION + 160,
+      (t) => {
+        const fallT = t * t;
+        const driftStart = 0.28;
+        const driftRaw = Phaser.Math.Clamp((t - driftStart) / (1 - driftStart), 0, 1);
+        const driftT = driftRaw * driftRaw * (3 - 2 * driftRaw);
+        const x = startX + (mouth.x - startX) * driftT;
+        const y = startY + (mouth.y - startY) * fallT;
+        marble.setPositionDirect(x, y);
+        if (t > 0.62) marble.state = 'falling-into-funnel';
+      },
+      'Linear',
+      () => {
+        if (this.isEnding || marble.state === 'destroyed') return;
+        this.funnel?.dropMarble(marble, funnelSlot);
+      },
+    );
   }
 
   private _onColumnCleared(): void {

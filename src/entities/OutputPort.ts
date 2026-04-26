@@ -29,7 +29,7 @@ export class OutputPort {
     const totalSpan = 3 * output.GAP_BETWEEN;
     const startX = conveyor.AREA.x + (conveyor.AREA.width - totalSpan) / 2;
     this.x = startX + columnIndex * output.GAP_BETWEEN;
-    this.y = conveyorTrack.bottomY + 20;
+    this.y = conveyorTrack.bottomY + 42;
     this.t = conveyorTrack.tForLowerLayerX(this.x);
 
     const emptyKey = outputPortArtKey(null);
