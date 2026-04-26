@@ -101,18 +101,11 @@ export class LevelSelectScene extends Phaser.Scene {
       fontSize: '22px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
-    const arrow = addOutlinedText(this, 226, 0, '>', {
-      fontSize: '40px',
-      stroke: '#d46e10',
-      strokeThickness: 5,
-      color: '#ffffff',
-      shadowY: 2,
-      shadowColor: '#a5520d',
-    });
     const arrowBg = this.add.graphics();
     const arrowBgAsset = hasArtTexture(this, ART_KEYS.arrowButton)
       ? this.add.image(226, -5, ART_KEYS.arrowButton).setDisplaySize(72, 72)
       : null;
+    let arrow: Phaser.GameObjects.Text | null = null;
     if (!arrowBgAsset) {
       arrowBg.fillStyle(UI.ACCENT_DARK, 1);
       arrowBg.fillRoundedRect(190, -36, 72, 72, 20);
@@ -120,9 +113,17 @@ export class LevelSelectScene extends Phaser.Scene {
       arrowBg.fillRoundedRect(190, -43, 72, 72, 20);
       arrowBg.fillStyle(0xffffff, 0.22);
       arrowBg.fillRoundedRect(198, -35, 56, 20, 10);
+      arrow = addOutlinedText(this, 226, 0, '>', {
+        fontSize: '40px',
+        stroke: '#d46e10',
+        strokeThickness: 5,
+        color: '#ffffff',
+        shadowY: 2,
+        shadowColor: '#a5520d',
+      });
     }
 
-    container.add([
+    const children: Phaser.GameObjects.GameObject[] = [
       backgroundAsset ?? background,
       badgeAsset ?? badge,
       number,
@@ -130,8 +131,9 @@ export class LevelSelectScene extends Phaser.Scene {
       stars,
       hook,
       arrowBgAsset ?? arrowBg,
-      arrow,
-    ]);
+    ];
+    if (arrow) children.push(arrow);
+    container.add(children);
     container.setSize(width, height);
     attachHitZone(this, container, width, height);
 
