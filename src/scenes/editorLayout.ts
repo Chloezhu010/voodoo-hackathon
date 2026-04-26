@@ -1,5 +1,4 @@
 import { CONFIG } from '../config/constants.js';
-
 import type { GeminiBriefReport } from '../services/geminiBrief.js';
 import type { ColorId } from '../sim/types.js';
 

@@ -1,10 +1,12 @@
 import { UI } from '../config/constants.js';
+
 import {
   analyzeLevelWithGemini,
   getGeminiApiKey,
   storeGeminiApiKey,
   type GeminiBriefReport,
 } from '../services/geminiBrief.js';
+
 import {
   AI_REVIEW_MODAL,
   EDITOR_LAYOUT,
@@ -13,7 +15,6 @@ import {
   type BriefPill,
   type SidebarCard,
 } from './editorLayout.js';
-
 import type { EditorScene } from './EditorScene.js';
 
 export class EditorAgentBriefPanel {

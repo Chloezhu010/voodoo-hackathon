@@ -1,6 +1,6 @@
 import { UI } from '../config/constants.js';
-import { type ActiveTextInput } from './editorLayout.js';
 
+import { type ActiveTextInput } from './editorLayout.js';
 import type { EditorScene } from './EditorScene.js';
 
 export class EditorJsonModals {

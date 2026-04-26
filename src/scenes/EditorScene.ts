@@ -1,6 +1,12 @@
 import { COLOR_IDS, getColorDefinition } from '../config/colors.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { Block } from '../entities/Block.js';
+import { EditorState } from '../sim/editorState.js';
+import { validateLevel } from '../sim/levelLoader.js';
+import type { BlockRecord, ColorId } from '../sim/types.js';
+import { drawSkyBackground } from '../ui/casualStyle.js';
+import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
+
 import { EditorAgentBriefPanel } from './EditorAgentBriefPanel.js';
 import { EditorJsonModals } from './EditorJsonModals.js';
 import {
@@ -16,11 +22,6 @@ import {
   type DragState,
   type HoverCell,
 } from './editorLayout.js';
-import { EditorState } from '../sim/editorState.js';
-import { validateLevel } from '../sim/levelLoader.js';
-import type { BlockRecord, ColorId } from '../sim/types.js';
-import { drawSkyBackground } from '../ui/casualStyle.js';
-import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
 
 export class EditorScene extends Phaser.Scene {
   editorState!: EditorState;
