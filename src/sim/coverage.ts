@@ -1,6 +1,8 @@
 import type { BlockRecord, BoardSize, WallCell } from './types.js';
 
-export type CoverageInput = Pick<BlockRecord, 'id' | 'col' | 'row' | 'z' | 'isCleared'>;
+export type CoverageInput = Pick<BlockRecord, 'id' | 'col' | 'row' | 'z' | 'isCleared'> & {
+  isConcealed?: boolean;
+};
 
 export interface CoverageOptions {
   boardSize?: BoardSize;
@@ -21,7 +23,7 @@ export function computeCoverage(
   const topBlocks: CoverageInput[] = [];
 
   for (const block of blocks) {
-    if (block.isCleared) continue;
+    if (block.isCleared || block.isConcealed) continue;
     const key = `${block.col}:${block.row}`;
     const stack = stacks.get(key);
     if (stack) stack.push(block);

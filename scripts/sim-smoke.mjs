@@ -52,6 +52,17 @@ function ok(message) {
 
 {
   const blocks = [
+    { id: 'lower', col: 0, row: 0, z: 0 },
+    { id: 'upper', col: 0, row: 0, z: 1, isConcealed: true },
+  ];
+  const coverage = computeCoverage(blocks);
+  assert.equal(coverage.get('lower'), false, 'concealed upper block must not cover lower block');
+  assert.equal(coverage.has('upper'), false, 'concealed block excluded from active coverage map');
+  ok('coverage: concealed stacked blocks do not block lower tile');
+}
+
+{
+  const blocks = [
     { id: 'center', col: 1, row: 1, z: 0 },
     { id: 'open', col: 2, row: 2, z: 0 },
   ];
@@ -160,6 +171,25 @@ function ok(message) {
       ],
     }),
     /outside board/,
+  );
+  assert.throws(
+    () => validateLevel({
+      level_id: 1,
+      name: 'bad',
+      difficulty: 0,
+      board_size: { cols: 2, rows: 2 },
+      blocks: [
+        { id: 'base', col: 0, row: 0, z: 0, color: 'pink' },
+        { id: 'concealed', col: 0, row: 0, z: 1, color: 'blue', starts_concealed: true },
+      ],
+      box_columns: [
+        { col: 0, boxes: ['pink', 'pink', 'pink'] },
+        { col: 1, boxes: ['blue', 'blue', 'blue'] },
+        { col: 2, boxes: [] },
+        { col: 3, boxes: [] },
+      ],
+    }),
+    /starts_concealed requires revealed_by/,
   );
   ok('levelLoader: pure validation accepts shipped level and rejects malformed');
 }

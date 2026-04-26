@@ -74,6 +74,8 @@ export class EditorState {
     if (existing) {
       existing.color = this.activeColor;
       existing.is_hidden = this.activeIsHidden;
+      existing.starts_concealed = false;
+      delete existing.revealed_by;
       this.syncBoxColumnsToBlocks();
       return;
     }
@@ -85,6 +87,7 @@ export class EditorState {
       z: this.activeZ,
       color: this.activeColor,
       is_hidden: this.activeIsHidden,
+      starts_concealed: false,
     });
     this.syncBoxColumnsToBlocks();
   }
@@ -254,6 +257,8 @@ export class EditorState {
       z: Number(block.z || 0),
       color: block.color,
       is_hidden: Boolean(block.is_hidden),
+      starts_concealed: Boolean(block.starts_concealed),
+      ...(block.revealed_by ? { revealed_by: block.revealed_by } : {}),
     }));
     this.walls = Array.isArray(data.walls)
       ? data.walls.map((wall) => ({ col: Number(wall.col), row: Number(wall.row) }))

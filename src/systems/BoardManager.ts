@@ -6,9 +6,11 @@ import type { BlockRecord, BoardSize, WallCell } from '../sim/types.js';
  * concrete Phaser entity can stay decoupled until its own TS migration.
  */
 export interface BlockLike {
-  data: Pick<BlockRecord, 'id' | 'col' | 'row' | 'z'>;
+  data: Pick<BlockRecord, 'id' | 'col' | 'row' | 'z' | 'revealed_by'>;
   isCleared: boolean;
   setCovered(isCovered: boolean): void;
+  isConcealed?(): boolean;
+  revealConcealed?(): boolean;
   refreshInteractivity?(): unknown;
 }
 
@@ -34,6 +36,7 @@ export class BoardManager {
       row: block.data.row,
       z: block.data.z,
       isCleared: block.isCleared,
+      isConcealed: block.isConcealed?.() ?? false,
     }));
     const coverage = computeCoverage(records, {
       boardSize: this.boardSize,
@@ -49,6 +52,10 @@ export class BoardManager {
 
   onBlockCleared(block: BlockLike): void {
     block.isCleared = true;
+    this.blocks.forEach((candidate) => {
+      if (candidate.data.revealed_by !== block.data.id) return;
+      candidate.revealConcealed?.();
+    });
     this.recomputeCoverage();
   }
 

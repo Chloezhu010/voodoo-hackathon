@@ -42,11 +42,13 @@ function tallyBlocks(levelData: LevelData): Map<ColorId, number> {
   const counts = new Map<ColorId, number>();
   const blockIds = new Set<string>();
   const occupiedLayers = new Set<string>();
+  const blocksById = new Map<string, LevelData['blocks'][number]>();
 
   levelData.blocks.forEach((block, index) => {
     if (!block.id) throw new Error(`Block ${index} missing id.`);
     if (blockIds.has(block.id)) throw new Error(`Duplicate block id ${block.id}.`);
     blockIds.add(block.id);
+    blocksById.set(block.id, block);
 
     if (!Number.isInteger(block.col) || !Number.isInteger(block.row) || !Number.isInteger(block.z)) {
       throw new Error(`Block ${block.id} col/row/z must be integers.`);
@@ -67,7 +69,25 @@ function tallyBlocks(levelData: LevelData): Map<ColorId, number> {
     if (block.is_hidden !== undefined && typeof block.is_hidden !== 'boolean') {
       throw new Error(`Block ${block.id} is_hidden must be boolean.`);
     }
+    if (block.starts_concealed !== undefined && typeof block.starts_concealed !== 'boolean') {
+      throw new Error(`Block ${block.id} starts_concealed must be boolean.`);
+    }
+    if (block.revealed_by !== undefined && typeof block.revealed_by !== 'string') {
+      throw new Error(`Block ${block.id} revealed_by must be string.`);
+    }
     counts.set(block.color, (counts.get(block.color) ?? 0) + 1);
+  });
+
+  levelData.blocks.forEach((block) => {
+    if (!block.starts_concealed && block.revealed_by) {
+      throw new Error(`Block ${block.id} revealed_by requires starts_concealed.`);
+    }
+    if (block.starts_concealed && !block.revealed_by) {
+      throw new Error(`Block ${block.id} starts_concealed requires revealed_by.`);
+    }
+    if (!block.revealed_by) return;
+    const revealer = blocksById.get(block.revealed_by);
+    if (!revealer) throw new Error(`Block ${block.id} revealed_by target ${block.revealed_by} not found.`);
   });
   return counts;
 }
