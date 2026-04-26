@@ -3,9 +3,10 @@
 Track 1
 
 Team `Vooloop`
-	- Chloe Zhu
-	- Wenhan Ding
-	- Yifan Miao
+
+- Chloe Zhu
+- Wenhan Ding
+- Yifan Miao
 
 ## Run And Test
 
