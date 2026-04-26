@@ -33,6 +33,7 @@ export class BoxColumn {
       box.setPosition(this.x, topY + index * (height + gap));
       this.boxes.push(box);
     });
+    this._updateBoxDepths();
   }
 
   canAcceptColor(color: ColorId): boolean {
@@ -66,10 +67,10 @@ export class BoxColumn {
     if (this.boxes[0] !== box) return;
 
     this.boxes.shift();
-    if (this.outputPort) this.outputPort.notifyColumnChanged();
 
     box.onVisualFull = () => {
       this._tweenBoxesToCurrentPositions();
+      if (this.outputPort) this.outputPort.notifyColumnChanged();
       this._emitClearedIfNeeded();
     };
   }
@@ -81,6 +82,13 @@ export class BoxColumn {
     const topY = area.y + height / 2;
     this.boxes.forEach((current, index) => {
       current.tweenPosition(this.x, topY + index * (height + gap), 350);
+    });
+    this._updateBoxDepths();
+  }
+
+  private _updateBoxDepths(): void {
+    this.boxes.forEach((box, index) => {
+      box.container.setDepth(90 + index);
     });
   }
 

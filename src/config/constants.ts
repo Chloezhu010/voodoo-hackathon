@@ -49,7 +49,7 @@ export const CONFIG = {
     AREA: { x: 40, y: 1030, width: 640, height: 180 },
     BOX_WIDTH: 100,
     BOX_HEIGHT: 50,
-    BOX_GAP: 4,
+    BOX_GAP: -12,
     SLOT_RADIUS: 12,
     BOX_CAPACITY: 3,
   },

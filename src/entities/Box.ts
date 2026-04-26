@@ -149,11 +149,17 @@ export class Box {
 
     this._playCollectEffect(marker, color.hex);
     this.visual_filled += 1;
+    this.scene.tweens.killTweensOf(this.container);
+    const restingY = this.container.y;
     this.scene.tweens.add({
       targets: this.container,
-      scale: { from: 1.08, to: 1 },
-      duration: 150,
-      ease: 'Back.easeOut',
+      y: restingY - 8,
+      duration: 80,
+      ease: 'Quad.easeOut',
+      yoyo: true,
+      onComplete: () => {
+        this.container.y = restingY;
+      },
     });
 
     if (this.visual_filled >= this.capacity) {
@@ -217,18 +223,20 @@ export class Box {
   private _playDestroyStars(): void {
     const originX = this.container.x;
     const originY = this.container.y;
-    const starColors = [0xffffff, 0xfff07a, 0xffd236];
 
-    for (let i = 0; i < 16; i += 1) {
-      const angle = -Math.PI / 2 + (i - 7.5) * 0.28;
+    const starCount = 4;
+    const centerOffset = (starCount - 1) / 2;
+
+    for (let i = 0; i < starCount; i += 1) {
+      const angle = -Math.PI / 2 + (i - centerOffset) * 0.5;
       const distance = 58 + (i % 4) * 16;
       const star = this.scene.add.star(
         originX,
         originY - 4,
         5,
-        6,
-        15,
-        starColors[i % starColors.length],
+        12,
+        28,
+        0xffffff,
         0.95,
       );
       star.setDepth(102);
