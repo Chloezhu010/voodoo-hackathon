@@ -1,4 +1,4 @@
-# Marble Sort! - Voodoo & Unaite & Anthropic AI + Game Hackathon
+# Marble Sort! - Voodoo x Unaite x Anthropic AI + Game Hackathon
 
 Track 1
 
