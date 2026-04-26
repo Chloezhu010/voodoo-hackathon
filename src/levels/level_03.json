@@ -1,6 +1,6 @@
 {
   "level_id": 3,
-  "name": "Gravity Flip",
+  "name": "Layered Secrets",
   "difficulty": 3,
   "board_size": { "cols": 5, "rows": 5 },
   "blocks": [
@@ -9,18 +9,18 @@
     { "id": "p3", "col": 0, "row": 4, "z": 1, "color": "purple", "is_hidden": false },
     { "id": "p4", "col": 4, "row": 4, "z": 1, "color": "purple", "is_hidden": false },
     { "id": "h1", "col": 0, "row": 0, "z": 0, "color": "orange", "is_hidden": true },
-    { "id": "h2", "col": 4, "row": 0, "z": 0, "color": "orange", "is_hidden": true },
+    { "id": "h2", "col": 4, "row": 0, "z": 0, "color": "blue", "is_hidden": true },
     { "id": "h3", "col": 0, "row": 4, "z": 0, "color": "orange", "is_hidden": true },
     { "id": "h4", "col": 4, "row": 4, "z": 0, "color": "orange", "is_hidden": true },
     { "id": "c1", "col": 2, "row": 2, "z": 1, "color": "pink", "is_hidden": false },
-    { "id": "c2", "col": 1, "row": 2, "z": 0, "color": "blue", "is_hidden": false },
-    { "id": "c3", "col": 3, "row": 2, "z": 0, "color": "blue", "is_hidden": false },
-    { "id": "c4", "col": 2, "row": 1, "z": 0, "color": "green", "is_hidden": false },
-    { "id": "c5", "col": 2, "row": 3, "z": 0, "color": "green", "is_hidden": false },
-    { "id": "e1", "col": 1, "row": 1, "z": 0, "color": "yellow", "is_hidden": false },
-    { "id": "e2", "col": 3, "row": 1, "z": 0, "color": "yellow", "is_hidden": false },
-    { "id": "e3", "col": 1, "row": 3, "z": 0, "color": "pink", "is_hidden": false },
-    { "id": "e4", "col": 3, "row": 3, "z": 0, "color": "pink", "is_hidden": false }
+    { "id": "c2", "col": 1, "row": 2, "z": 0, "color": "blue", "is_hidden": false, "starts_concealed": true, "revealed_by": "c1" },
+    { "id": "c3", "col": 3, "row": 2, "z": 0, "color": "blue", "is_hidden": false, "starts_concealed": true, "revealed_by": "c1" },
+    { "id": "c4", "col": 2, "row": 1, "z": 0, "color": "green", "is_hidden": false, "starts_concealed": true, "revealed_by": "c1" },
+    { "id": "c5", "col": 2, "row": 3, "z": 0, "color": "green", "is_hidden": false, "starts_concealed": true, "revealed_by": "c1" },
+    { "id": "e1", "col": 1, "row": 1, "z": 0, "color": "yellow", "is_hidden": false, "starts_concealed": true, "revealed_by": "c4" },
+    { "id": "e2", "col": 3, "row": 1, "z": 0, "color": "yellow", "is_hidden": false, "starts_concealed": true, "revealed_by": "c4" },
+    { "id": "e3", "col": 1, "row": 3, "z": 0, "color": "pink", "is_hidden": false, "starts_concealed": true, "revealed_by": "c5" },
+    { "id": "e4", "col": 3, "row": 3, "z": 0, "color": "pink", "is_hidden": false, "starts_concealed": true, "revealed_by": "c5" }
   ],
   "walls": [
     { "col": 2, "row": 0 },
@@ -29,10 +29,10 @@
     { "col": 2, "row": 4 }
   ],
   "box_columns": [
-    { "col": 0, "boxes": ["purple", "purple", "purple", "purple", "purple", "purple", "purple", "purple", "purple", "purple", "purple", "purple"] },
-    { "col": 1, "boxes": ["orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange", "orange"] },
-    { "col": 2, "boxes": ["pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink", "pink", "blue", "blue", "blue", "blue", "blue", "blue"] },
-    { "col": 3, "boxes": ["green", "green", "green", "green", "green", "green", "yellow", "yellow", "yellow", "yellow", "yellow", "yellow"] }
+    { "col": 0, "boxes": ["purple", "orange", "purple", "purple", "orange", "purple", "purple", "orange", "purple", "purple", "orange", "purple"] },
+    { "col": 1, "boxes": ["orange", "purple", "blue", "orange", "purple", "blue", "orange", "purple", "blue", "orange", "purple", "orange"] },
+    { "col": 2, "boxes": ["pink", "blue", "pink", "blue", "pink", "pink", "blue", "pink", "blue", "pink", "pink", "blue", "pink", "blue", "pink"] },
+    { "col": 3, "boxes": ["green", "yellow", "green", "yellow", "green", "yellow", "green", "yellow", "green", "yellow", "green", "yellow"] }
   ],
   "conveyor_speed": 0.24,
   "gravity_flip_enabled": true,
