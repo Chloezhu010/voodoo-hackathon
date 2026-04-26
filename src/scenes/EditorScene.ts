@@ -1,59 +1,26 @@
 import { COLOR_IDS, getColorDefinition } from '../config/colors.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { Block } from '../entities/Block.js';
+import { EditorAgentBriefPanel } from './EditorAgentBriefPanel.js';
+import { EditorJsonModals } from './EditorJsonModals.js';
 import {
-  analyzeLevelWithGemini,
-  getGeminiApiKey,
-  storeGeminiApiKey,
-  type GeminiBriefReport,
-} from '../services/geminiBrief.js';
+  BOX_COLUMN_MAX_BOXES,
+  CONVEYOR_SPEED_OPTIONS,
+  EDITOR_BLOCK_SIZE,
+  EDITOR_CANVAS_WIDTH,
+  EDITOR_CELL_SIZE,
+  EDITOR_GAME_X,
+  EDITOR_LAYOUT,
+  GRID_START,
+  type ActiveTextInput,
+  type DragState,
+  type HoverCell,
+} from './editorLayout.js';
 import { EditorState } from '../sim/editorState.js';
 import { validateLevel } from '../sim/levelLoader.js';
 import type { BlockRecord, ColorId } from '../sim/types.js';
 import { drawSkyBackground } from '../ui/casualStyle.js';
 import { attachHitZone, makeWorldHitZone } from '../ui/hitZones.js';
-
-const EDITOR_CELL_SIZE = 88;
-const EDITOR_CANVAS_WIDTH = 1120;
-const EDITOR_GAME_X = (EDITOR_CANVAS_WIDTH - CONFIG.GAME_WIDTH) / 2;
-const GRID_START = {
-  x: (CONFIG.GAME_WIDTH - EDITOR_CELL_SIZE * 5) / 2,
-  y: 136,
-} as const;
-const EDITOR_BLOCK_SIZE = 66;
-const CONVEYOR_SPEED_OPTIONS = [0.12, 0.16, 0.18, 0.22, 0.26] as const;
-const BOX_COLUMN_MAX_BOXES = 6;
-const EDITOR_LAYOUT = {
-  palette: { x: -182, y: 122, width: 164, height: 536 },
-  tools: { x: 738, y: 122, width: 164, height: 536 },
-  boxes: { x: 64, y: 704, width: 592, height: 390 },
-  ioY: 1180,
-} as const;
-
-interface HoverCell {
-  col: number;
-  row: number;
-}
-
-interface ActiveTextInput {
-  value: string;
-  text: Phaser.GameObjects.Text;
-  errorText: Phaser.GameObjects.Text | null;
-}
-
-interface DragState {
-  color: ColorId;
-  preview: Phaser.GameObjects.Container;
-  startX: number;
-  startY: number;
-  hasMoved: boolean;
-}
-
-declare global {
-  interface Window {
-    _editorStateSnapshot?: string;
-  }
-}
 
 export class EditorScene extends Phaser.Scene {
   editorState!: EditorState;
@@ -61,7 +28,10 @@ export class EditorScene extends Phaser.Scene {
   modal: Phaser.GameObjects.Container | null = null;
   activeTextInput: ActiveTextInput | null = null;
   dragState: DragState | null = null;
+  lastPlacedCell: HoverCell | null = null;
   root!: Phaser.GameObjects.Container;
+  briefPanel!: EditorAgentBriefPanel;
+  jsonModals!: EditorJsonModals;
 
   constructor() {
     super('EditorScene');
@@ -92,6 +62,9 @@ export class EditorScene extends Phaser.Scene {
     this.modal = null;
     this.activeTextInput = null;
     this.dragState = null;
+    this.lastPlacedCell = null;
+    this.briefPanel = new EditorAgentBriefPanel(this);
+    this.jsonModals = new EditorJsonModals(this);
 
     if (window._editorStateSnapshot) {
       try {
@@ -112,10 +85,10 @@ export class EditorScene extends Phaser.Scene {
       this.scale.setGameSize(CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
     });
 
-    this._renderAll();
+    this.renderAll();
   }
 
-  private _renderAll(): void {
+  renderAll(): void {
     if (this.root) this.root.destroy(true);
     this.root = this.add.container(EDITOR_GAME_X, 0);
     this._drawHeader();
@@ -124,17 +97,19 @@ export class EditorScene extends Phaser.Scene {
     this._drawLayerControls();
     this._drawBoxColumnsPanel();
     this._drawParams();
+    this.briefPanel.drawSidebars();
     this._drawIO();
+    this.lastPlacedCell = null;
   }
 
   private _drawHeader(): void {
-    this.root.add(this._makeButton(104, 48, 132, 50, '← MENU', UI.PANEL_DARK, () => {
+    this.root.add(this.makeButton(104, 48, 132, 50, '← MENU', UI.PANEL_DARK, () => {
       this.scene.start('MenuScene');
     }));
     this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, 48, 'LEVEL EDITOR', {
       fontSize: '28px', color: UI.TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
-    this.root.add(this._makeButton(602, 48, 150, 50, 'START', UI.PRIMARY, () => this._playTest()));
+    this.root.add(this.makeButton(602, 48, 150, 50, 'START', UI.PRIMARY, () => this._playTest()));
   }
 
   private _drawGrid(): void {
@@ -173,6 +148,9 @@ export class EditorScene extends Phaser.Scene {
         showQuestion: Boolean(top.is_hidden),
       });
       visual.setPosition(center.x, center.y);
+      if (this.lastPlacedCell?.col === col && this.lastPlacedCell.row === row) {
+        this._animatePlacedBlock(visual);
+      }
       layer.add(visual);
 
       const zBadge = this.add.text(center.x - 35, center.y - 35, `z${top.z}`, {
@@ -189,29 +167,7 @@ export class EditorScene extends Phaser.Scene {
       }
     });
 
-    if (this.hoverCell) {
-      const center = this._gridCenter(this.hoverCell.col, this.hoverCell.row);
-      if (this.editorState.eraseMode) {
-        const erase = this.add.graphics();
-        erase.lineStyle(5, 0xff4d6d, 0.85);
-        erase.strokeRoundedRect(
-          center.x - EDITOR_BLOCK_SIZE / 2,
-          center.y - EDITOR_BLOCK_SIZE / 2,
-          EDITOR_BLOCK_SIZE,
-          EDITOR_BLOCK_SIZE,
-          14,
-        );
-        layer.add(erase);
-      } else {
-        const ghost = Block.createVisual(this, this.editorState.activeColor, {
-          size: EDITOR_BLOCK_SIZE,
-          showQuestion: this.editorState.activeIsHidden,
-          alpha: 0.45,
-        });
-        ghost.setPosition(center.x, center.y);
-        layer.add(ghost);
-      }
-    }
+    this._drawHoverCell(layer);
 
     for (let row = 0; row < this.editorState.gridRows; row += 1) {
       for (let col = 0; col < this.editorState.gridCols; col += 1) {
@@ -229,8 +185,9 @@ export class EditorScene extends Phaser.Scene {
         hit.on('pointerup', () => {
           if (this.dragState?.hasMoved) return;
           this.editorState.placeBlock(col, row);
-          this._persistState();
-          this._renderAll();
+          this.lastPlacedCell = { col, row };
+          this.persistState();
+          this.renderAll();
         });
         layer.add(hit);
       }
@@ -239,7 +196,7 @@ export class EditorScene extends Phaser.Scene {
 
   private _drawPalette(): void {
     const panel = EDITOR_LAYOUT.palette;
-    this.root.add(this._makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
+    this.root.add(this.makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
 
     this.root.add(this.add.text(panel.x + panel.width / 2, panel.y + 26, 'DRAG', {
       fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold',
@@ -257,32 +214,70 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
+  private _drawHoverCell(layer: Phaser.GameObjects.Container): void {
+    if (!this.hoverCell) return;
+    const center = this._gridCenter(this.hoverCell.col, this.hoverCell.row);
+    const isDragTarget = Boolean(this.dragState?.hasMoved);
+    const target = this.add.graphics();
+    target.lineStyle(isDragTarget ? 5 : 3, isDragTarget ? UI.ACCENT : 0xffffff, isDragTarget ? 0.9 : 0.28);
+    target.strokeRoundedRect(
+      center.x - EDITOR_CELL_SIZE / 2 + 6,
+      center.y - EDITOR_CELL_SIZE / 2 + 6,
+      EDITOR_CELL_SIZE - 12,
+      EDITOR_CELL_SIZE - 12,
+      16,
+    );
+    layer.add(target);
+
+    if (this.editorState.eraseMode) {
+      const erase = this.add.graphics();
+      erase.lineStyle(5, 0xff4d6d, 0.85);
+      erase.strokeRoundedRect(
+        center.x - EDITOR_BLOCK_SIZE / 2,
+        center.y - EDITOR_BLOCK_SIZE / 2,
+        EDITOR_BLOCK_SIZE,
+        EDITOR_BLOCK_SIZE,
+        14,
+      );
+      layer.add(erase);
+      return;
+    }
+
+    const ghost = Block.createVisual(this, this.editorState.activeColor, {
+      size: EDITOR_BLOCK_SIZE,
+      showQuestion: this.editorState.activeIsHidden,
+      alpha: 0.45,
+    });
+    ghost.setPosition(center.x, center.y);
+    layer.add(ghost);
+  }
+
   private _drawLayerControls(): void {
     const panel = EDITOR_LAYOUT.tools;
     const centerX = panel.x + panel.width / 2;
     const y = panel.y + 88;
-    this.root.add(this._makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
+    this.root.add(this.makePanel(panel.x, panel.y, panel.width, panel.height, UI.PANEL_LIGHT));
     this.root.add(this.add.text(centerX, panel.y + 26, 'TOOLS', {
       fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
     this.root.add(this.add.text(centerX, panel.y + 52, `z=${this.editorState.activeZ}`, {
       fontSize: '20px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
-    this.root.add(this._makeButton(centerX, y, 56, 42, '▲', UI.PANEL_DARK, () => {
+    this.root.add(this.makeButton(centerX, y, 56, 42, '▲', UI.PANEL_DARK, () => {
       this.editorState.setActiveZ(this.editorState.activeZ + 1);
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
-    this.root.add(this._makeButton(centerX, y + 52, 56, 42, '▼', UI.PANEL_DARK, () => {
+    this.root.add(this.makeButton(centerX, y + 52, 56, 42, '▼', UI.PANEL_DARK, () => {
       this.editorState.setActiveZ(this.editorState.activeZ - 1);
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
 
     this.root.add(this._makeSquareSwatch(centerX, y + 118, 56, UI.PANEL, '?', this.editorState.activeIsHidden, () => {
       this.editorState.activeIsHidden = !this.editorState.activeIsHidden;
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
 
     this.root.add(this._makeSquareSwatch(
@@ -294,15 +289,15 @@ export class EditorScene extends Phaser.Scene {
       this.editorState.eraseMode,
       () => {
         this.editorState.eraseMode = !this.editorState.eraseMode;
-        this._persistState();
-        this._renderAll();
+        this.persistState();
+        this.renderAll();
       },
     ));
   }
 
   private _drawBoxColumnsPanel(): void {
     const { x: panelX, y: panelY, width: panelWidth, height: panelHeight } = EDITOR_LAYOUT.boxes;
-    this.root.add(this._makePanel(panelX, panelY, panelWidth, panelHeight, UI.PANEL_LIGHT));
+    this.root.add(this.makePanel(panelX, panelY, panelWidth, panelHeight, UI.PANEL_LIGHT));
     this.root.add(this.add.text(panelX + 24, panelY + 28, 'BOX COLUMNS', {
       fontSize: '17px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0, 0.5));
@@ -335,24 +330,24 @@ export class EditorScene extends Phaser.Scene {
 
       const canAdd = column.boxes.length < BOX_COLUMN_MAX_BOXES;
       const addY = panelY + 100 + Math.min(column.boxes.length, BOX_COLUMN_MAX_BOXES) * 30;
-      this.root.add(this._makeButton(colX, addY, 78, 26, '+', canAdd ? UI.PANEL_DARK : 0x8794aa, () => {
+      this.root.add(this.makeButton(colX, addY, 78, 26, '+', canAdd ? UI.PANEL_DARK : 0x8794aa, () => {
         if (!canAdd) return;
         this.editorState.setActiveColumn(index);
         this.editorState.addBoxToColumn(index);
-        this._persistState();
-        this._renderAll();
+        this.persistState();
+        this.renderAll();
       }));
     });
 
-    this.root.add(this._makeButton(panelX + 188, panelY + panelHeight - 42, 176, 46, 'AUTO FILL', UI.PANEL_DARK, () => {
+    this.root.add(this.makeButton(panelX + 188, panelY + panelHeight - 42, 176, 46, 'AUTO FILL', UI.PANEL_DARK, () => {
       this.editorState.syncBoxColumnsToBlocks();
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
-    this.root.add(this._makeButton(panelX + 404, panelY + panelHeight - 42, 176, 46, 'CLEAR COL', 0x923653, () => {
+    this.root.add(this.makeButton(panelX + 404, panelY + panelHeight - 42, 176, 46, 'CLEAR COL', 0x923653, () => {
       this.editorState.clearColumn(this.editorState.activeColumn);
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
   }
 
@@ -372,8 +367,8 @@ export class EditorScene extends Phaser.Scene {
       timer = this.time.delayedCall(500, () => {
         longPressTriggered = true;
         this.editorState.removeBoxFromColumn(columnIndex, boxIndex);
-        this._persistState();
-        this._renderAll();
+        this.persistState();
+        this.renderAll();
       });
     });
     hit.on('pointerup', () => {
@@ -381,8 +376,8 @@ export class EditorScene extends Phaser.Scene {
       timer = null;
       if (longPressTriggered) return;
       this.editorState.setBoxColor(columnIndex, boxIndex);
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     });
     hit.on('pointerout', () => {
       timer?.remove(false);
@@ -403,10 +398,10 @@ export class EditorScene extends Phaser.Scene {
       const x = centerX + (index % 2 === 0 ? -21 : 21);
       const rowY = y + 32 + Math.floor(index / 2) * 34;
       const active = Math.abs(this.editorState.conveyorSpeed - value) < 0.001;
-      this.root.add(this._makeButton(x, rowY, 40, 28, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
+      this.root.add(this.makeButton(x, rowY, 40, 28, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
         this.editorState.setConveyorSpeed(value);
-        this._persistState();
-        this._renderAll();
+        this.persistState();
+        this.renderAll();
       }));
     });
 
@@ -416,8 +411,8 @@ export class EditorScene extends Phaser.Scene {
     box.setStrokeStyle(3, 0xffffff, 0.5);
     const boxHit = makeWorldHitZone(this, checkX, checkY, 50, 50, () => {
       this.editorState.gravityFlipEnabled = !this.editorState.gravityFlipEnabled;
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     });
     this.root.add([box, boxHit]);
     this.root.add(this.add.text(checkX + 23, checkY, 'FLIP', {
@@ -428,33 +423,35 @@ export class EditorScene extends Phaser.Scene {
     this.root.add(this.add.text(centerX, magnetY - 22, 'MAGNET', {
       fontSize: '13px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
-    this.root.add(this._makeButton(centerX - 28, magnetY, 28, 28, '-', UI.PANEL_DARK, () => {
+    this.root.add(this.makeButton(centerX - 28, magnetY, 28, 28, '-', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount - 1);
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
     this.root.add(this.add.text(centerX, magnetY, String(this.editorState.magnetCount), {
       fontSize: '20px', color: UI.DARK_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
-    this.root.add(this._makeButton(centerX + 28, magnetY, 28, 28, '+', UI.PANEL_DARK, () => {
+    this.root.add(this.makeButton(centerX + 28, magnetY, 28, 28, '+', UI.PANEL_DARK, () => {
       this.editorState.setMagnetCount(this.editorState.magnetCount + 1);
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     }));
   }
 
   private _drawIO(): void {
     const y = EDITOR_LAYOUT.ioY;
-    this.root.add(this._makeButton(104, y, 138, 54, 'EXPORT', UI.PANEL_DARK, () => this._showExportModal()));
-    this.root.add(this._makeButton(256, y, 138, 54, 'AI BRIEF', UI.PANEL_DARK, () => this._showAgentBriefModal()));
-    this.root.add(this._makeButton(408, y, 138, 54, 'IMPORT', UI.PANEL_DARK, () => this._showImportModal()));
-    this.root.add(this._makeButton(572, y, 150, 54, 'CLEAR ALL', 0x923653, () => this._showConfirmClear()));
+    this.root.add(this.makeButton(104, y, 138, 54, 'EXPORT', UI.PANEL_DARK, () => this.jsonModals.showExport()));
+    this.root.add(this.makeButton(256, y, 138, 54, 'AI BRIEF', UI.PANEL_DARK, () => {
+      void this.briefPanel.showModal();
+    }));
+    this.root.add(this.makeButton(408, y, 138, 54, 'IMPORT', UI.PANEL_DARK, () => this.jsonModals.showImport()));
+    this.root.add(this.makeButton(572, y, 150, 54, 'CLEAR ALL', 0x923653, () => this.jsonModals.showConfirmClear()));
     this.root.add(this.add.text(CONFIG.GAME_WIDTH / 2, y + 52, 'Export JSON is playable; AI Brief is readable design context.', {
       fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
   }
 
-  private _makePanel(
+  makePanel(
     x: number, y: number, width: number, height: number, fillColor: number,
   ): Phaser.GameObjects.Graphics {
     const panel = this.add.graphics();
@@ -499,8 +496,8 @@ export class EditorScene extends Phaser.Scene {
       if (this.dragState?.hasMoved) return;
       this.editorState.activeColor = colorId;
       this.editorState.eraseMode = false;
-      this._persistState();
-      this._renderAll();
+      this.persistState();
+      this.renderAll();
     });
 
     container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -527,16 +524,34 @@ export class EditorScene extends Phaser.Scene {
       startX: pointer.x,
       startY: pointer.y,
       hasMoved: false,
+      targetCell: null,
     };
   }
 
   private _handlePointerMove(pointer: Phaser.Input.Pointer): void {
     if (!this.dragState) return;
     const drag = this.dragState;
-    drag.preview.setPosition(pointer.x, pointer.y);
     if (Phaser.Math.Distance.Between(drag.startX, drag.startY, pointer.x, pointer.y) > 8) {
       drag.hasMoved = true;
     }
+    if (this._syncDragPreview(pointer, drag)) {
+      this.hoverCell = drag.targetCell;
+      this.renderAll();
+    }
+  }
+
+  private _syncDragPreview(pointer: Phaser.Input.Pointer, drag: DragState): boolean {
+    const cell = drag.hasMoved ? this._pointToGridCell(pointer.x, pointer.y) : null;
+    const changedCell = drag.targetCell?.col !== cell?.col || drag.targetCell?.row !== cell?.row;
+    drag.targetCell = cell;
+    if (!cell) {
+      drag.preview.setPosition(pointer.x, pointer.y);
+      return changedCell;
+    }
+
+    const center = this._gridCenterWorld(cell.col, cell.row);
+    drag.preview.setPosition(center.x, center.y);
+    return changedCell;
   }
 
   private _handlePointerUp(pointer: Phaser.Input.Pointer): void {
@@ -544,12 +559,19 @@ export class EditorScene extends Phaser.Scene {
     const drag = this.dragState;
     const cell = this._pointToGridCell(pointer.x, pointer.y);
     this._clearDragPreview();
-    if (!drag.hasMoved || !cell) return;
+    if (!drag.hasMoved) return;
+    if (!cell) {
+      this.hoverCell = null;
+      this.renderAll();
+      this.showToast('Drop on the grid');
+      return;
+    }
     this.editorState.activeColor = drag.color;
     this.editorState.eraseMode = false;
     this.editorState.placeBlock(cell.col, cell.row);
-    this._persistState();
-    this._renderAll();
+    this.lastPlacedCell = cell;
+    this.persistState();
+    this.renderAll();
   }
 
   private _clearDragPreview(): void {
@@ -558,7 +580,7 @@ export class EditorScene extends Phaser.Scene {
     this.dragState = null;
   }
 
-  private _makeButton(
+  makeButton(
     x: number, y: number, width: number, height: number, label: string, fillColor: number, onClick: () => void,
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
@@ -594,212 +616,21 @@ export class EditorScene extends Phaser.Scene {
     return label.length > 10 ? '18px' : '20px';
   }
 
-  private _showExportModal(): void {
-    const json = this.editorState.exportJSON();
-    const modal = this._makeModal('Exported JSON');
-    const display = json.length > 2600 ? `${json.slice(0, 2600)}\n...` : json;
-    const outputBg = this.add.rectangle(0, -40, 540, 520, 0x151522, 1);
-    outputBg.setStrokeStyle(2, 0xffffff, 0.14);
-    modal.add(outputBg);
-    const text = this.add.text(-270, -275, display, {
-      fontSize: '13px', color: '#a0ffa0', fontStyle: 'bold', wordWrap: { width: 540 },
-    }).setOrigin(0, 0);
-    modal.add(text);
-
-    modal.add(this._makeButton(-115, 336, 190, 58, 'COPY', UI.PRIMARY, async () => {
-      try {
-        await navigator.clipboard.writeText(json);
-        this._showToast('Copied JSON');
-      } catch {
-        this._showToast('Clipboard unavailable');
-      }
-    }));
-    modal.add(this._makeButton(115, 336, 190, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
-  }
-
-  private _showImportModal(): void {
-    const modal = this._makeModal('Import JSON');
-    const inputBg = this.add.rectangle(0, -40, 540, 520, 0x151522, 1);
-    inputBg.setStrokeStyle(2, 0xffffff, 0.14);
-    modal.add(inputBg);
-
-    const inputText = this.add.text(-255, -285, 'Paste or type JSON here', {
-      fontSize: '13px', color: '#8f8fa8', fontStyle: 'bold', wordWrap: { width: 510 },
-    }).setOrigin(0, 0);
-    modal.add(inputText);
-
-    const errorText = this.add.text(0, 244, '', {
-      fontSize: '15px', color: '#ff9a9a', fontStyle: 'bold', align: 'center', wordWrap: { width: 520 },
-    }).setOrigin(0.5);
-    modal.add(errorText);
-
-    const inputState: ActiveTextInput = { value: '', text: inputText, errorText };
-    inputBg.setInteractive({ useHandCursor: true });
-    inputBg.on('pointerdown', () => {
-      this.activeTextInput = inputState;
-      this._refreshInputText();
+  private _animatePlacedBlock(target: Phaser.GameObjects.Container): void {
+    target.setScale(0.74);
+    this.tweens.add({
+      targets: target,
+      scale: 1.06,
+      duration: 120,
+      ease: 'Back.Out',
+      onComplete: () => {
+        this.tweens.add({ targets: target, scale: 1, duration: 80, ease: 'Sine.Out' });
+      },
     });
-    this.activeTextInput = inputState;
-
-    modal.add(this._makeButton(-205, 336, 150, 58, 'PASTE', UI.PANEL_DARK, async () => {
-      try {
-        if (!this.activeTextInput) return;
-        this.activeTextInput.value = await navigator.clipboard.readText();
-        this._refreshInputText();
-      } catch {
-        errorText.setText('Clipboard read failed.');
-      }
-    }));
-
-    modal.add(this._makeButton(0, 336, 150, 58, 'LOAD', UI.PRIMARY, () => {
-      try {
-        if (!this.activeTextInput) return;
-        this.editorState.importJSON(this.activeTextInput.value);
-        this._persistState();
-        this._closeModal();
-        this._renderAll();
-        this._showToast('Imported JSON');
-      } catch (error) {
-        errorText.setText((error as Error).message);
-      }
-    }));
-
-    modal.add(this._makeButton(205, 336, 150, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
   }
 
-  private async _showAgentBriefModal(): Promise<void> {
-    const brief = this.editorState.getAgentBrief();
-    const modal = this._makeModal('AI Level Brief');
-    const copyState = { text: brief };
-    const status = this.add.text(0, -310, '', {
-      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 520 },
-    }).setOrigin(0.5);
-    const content = this.add.text(-260, -270, brief, {
-      fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold', wordWrap: { width: 520 },
-    }).setOrigin(0, 0);
-    modal.add([status, content]);
-
-    const runAnalysis = () => this._runGeminiBriefAnalysis(brief, status, content, copyState);
-    this._addAgentBriefButtons(modal, status, copyState, runAnalysis);
-    await runAnalysis();
-  }
-
-  private _addAgentBriefButtons(
-    modal: Phaser.GameObjects.Container,
-    status: Phaser.GameObjects.Text,
-    copyState: { text: string },
-    runAnalysis: () => Promise<void>,
-  ): void {
-    modal.add(this._makeButton(-230, 336, 124, 58, 'SET KEY', UI.PANEL_DARK, () => {
-      const apiKey = window.prompt('Gemini API key');
-      if (!apiKey) return;
-      storeGeminiApiKey(apiKey);
-      status.setText('Gemini API key saved locally.');
-    }));
-    modal.add(this._makeButton(-76, 336, 124, 58, 'RUN', UI.PRIMARY, () => {
-      void runAnalysis();
-    }));
-    modal.add(this._makeButton(76, 336, 124, 58, 'COPY', UI.PANEL_DARK, async () => {
-      try {
-        await navigator.clipboard.writeText(copyState.text);
-        this._showToast('Copied AI brief');
-      } catch {
-        this._showToast('Clipboard unavailable');
-      }
-    }));
-    modal.add(this._makeButton(230, 336, 124, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
-  }
-
-  private async _runGeminiBriefAnalysis(
-    brief: string,
-    status: Phaser.GameObjects.Text,
-    content: Phaser.GameObjects.Text,
-    copyState: { text: string },
-  ): Promise<void> {
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-      status.setText('Missing Gemini API key. Set VITE_GEMINI_API_KEY or use SET KEY.');
-      return;
-    }
-
-    status.setText('Analyzing with gemini-3-flash-preview...');
-    try {
-      const report = await analyzeLevelWithGemini(
-        this.editorState.toLevelData(),
-        this.editorState.getValidationStatus(),
-        brief,
-        apiKey,
-        {
-          onDelta: (text) => {
-            copyState.text = text;
-            content.setText(text);
-            status.setText('Streaming structured AI brief...');
-          },
-        },
-      );
-      copyState.text = JSON.stringify(report, null, 2);
-      content.setText(this._formatGeminiBrief(report));
-      status.setText('Structured AI brief ready.');
-    } catch (error) {
-      status.setText((error as Error).message);
-    }
-  }
-
-  private _formatGeminiBrief(report: GeminiBriefReport): string {
-    const roles = report.roleReviews
-      .map((review) => `${this._roleLabel(review.role)} [${review.severity}]: ${review.finding}`)
-      .join('\n');
-    const stuck = report.likelyStuckPoints.map((item) => `- ${item}`).join('\n') || '- No clear stuck points.';
-    const changes = report.recommendedChanges
-      .map((item) => `- ${item.priority}: ${item.change} (${item.reason})`)
-      .join('\n') || '- None.';
-
-    return [
-      `Verdict: ${report.verdict} / ${report.progressionPlacement} / difficulty ${report.difficultyScore}/10`,
-      `Confidence: ${Math.round(report.confidence * 100)}%`,
-      '',
-      report.teamSummary,
-      '',
-      `Solvability: ${report.solvability.status}`,
-      report.solvability.reason,
-      '',
-      'Team review:',
-      roles,
-      '',
-      'Likely stuck points:',
-      stuck,
-      '',
-      'Recommended changes:',
-      changes,
-    ].join('\n');
-  }
-
-  private _roleLabel(role: GeminiBriefReport['roleReviews'][number]['role']): string {
-    return {
-      level_designer: 'Level Designer',
-      gameplay_tester: 'Gameplay Tester',
-      product_manager: 'Product Manager',
-      balancing_critic: 'Balancing Critic',
-      iteration_partner: 'Iteration Partner',
-    }[role];
-  }
-
-  private _showConfirmClear(): void {
-    const modal = this._makeModal('Clear All?');
-    modal.add(this.add.text(0, -40, 'Remove all blocks from the editor?', {
-      fontSize: '24px', color: UI.DARK_TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
-    }).setOrigin(0.5));
-    modal.add(this._makeButton(-120, 125, 190, 62, 'CLEAR', 0x923653, () => {
-      this.editorState.clear();
-      this._persistState();
-      this._closeModal();
-      this._renderAll();
-    }));
-    modal.add(this._makeButton(120, 125, 190, 62, 'CANCEL', UI.PANEL_DARK, () => this._closeModal()));
-  }
-
-  private _makeModal(title: string): Phaser.GameObjects.Container {
-    this._closeModal();
+  makeModal(title: string, width = 600, height = 820): Phaser.GameObjects.Container {
+    this.closeModal();
     const modal = this.add.container(EDITOR_CANVAS_WIDTH / 2, CONFIG.GAME_HEIGHT / 2);
     modal.setDepth(2000);
 
@@ -807,17 +638,21 @@ export class EditorScene extends Phaser.Scene {
     overlay.setInteractive();
     modal.add(overlay);
 
-    const panel = this.add.rectangle(0, 0, 600, 820, UI.PANEL_LIGHT, 1);
+    const panel = this.add.rectangle(0, 0, width, height, UI.PANEL_LIGHT, 1);
     panel.setStrokeStyle(3, 0xffffff, 0.18);
     modal.add(panel);
 
-    modal.add(this.add.text(0, -365, title, { fontSize: '32px', color: UI.DARK_TEXT, fontStyle: 'bold' }).setOrigin(0.5));
+    modal.add(this.add.text(0, -height / 2 + 45, title, {
+      fontSize: width > 600 ? '38px' : '32px',
+      color: UI.DARK_TEXT,
+      fontStyle: 'bold',
+    }).setOrigin(0.5));
 
     this.modal = modal;
     return modal;
   }
 
-  private _closeModal(): void {
+  closeModal(): void {
     this.activeTextInput = null;
     if (this.modal) {
       this.modal.destroy(true);
@@ -840,10 +675,10 @@ export class EditorScene extends Phaser.Scene {
       this.activeTextInput.value += event.key;
     }
 
-    this._refreshInputText();
+    this.refreshInputText();
   }
 
-  private _refreshInputText(): void {
+  refreshInputText(): void {
     if (!this.activeTextInput) return;
     const value = this.activeTextInput.value;
     const display = value.length > 2600 ? `${value.slice(0, 2600)}\n...` : value;
@@ -855,7 +690,7 @@ export class EditorScene extends Phaser.Scene {
   private _playTest(): void {
     const error = this._validateForPlayTest();
     if (error) {
-      this._showToast(error);
+      this.showToast(error);
       return;
     }
 
@@ -875,7 +710,7 @@ export class EditorScene extends Phaser.Scene {
     return null;
   }
 
-  private _showToast(message: string): void {
+  showToast(message: string): void {
     const toast = this.add.container(EDITOR_CANVAS_WIDTH / 2, 1220);
     toast.setDepth(3000);
     const bg = this.add.graphics();
@@ -903,6 +738,11 @@ export class EditorScene extends Phaser.Scene {
     };
   }
 
+  private _gridCenterWorld(col: number, row: number): { x: number; y: number } {
+    const center = this._gridCenter(col, row);
+    return { x: center.x + EDITOR_GAME_X, y: center.y };
+  }
+
   private _pointToGridCell(x: number, y: number): HoverCell | null {
     const localX = x - EDITOR_GAME_X;
     const col = Math.floor((localX - GRID_START.x) / EDITOR_CELL_SIZE);
@@ -925,7 +765,7 @@ export class EditorScene extends Phaser.Scene {
     return stacks;
   }
 
-  private _persistState(): void {
+  persistState(): void {
     window._editorStateSnapshot = this.editorState.exportJSON();
   }
 }
