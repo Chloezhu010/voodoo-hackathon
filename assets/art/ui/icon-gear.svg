@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+
+  <path d="M28 5H36L39 18L51 13L56 20L49 31L61 36V44L49 47L55 58L49 63L38 56L35 68H27L24 56L12 62L7 55L15 45L3 40V32L16 29L9 18L15 12L26 18Z" fill="#6d2eab" opacity="0.55" transform="translate(0 -3)"/>
+  <path d="M28 2H36L39 15L51 10L56 17L49 28L61 33V41L49 44L55 55L49 60L38 53L35 65H27L24 53L12 59L7 52L15 42L3 37V29L16 26L9 15L15 9L26 15Z" fill="#ffffff"/>
+  <circle cx="32" cy="33" r="14" fill="#6d2eab"/>
+  <circle cx="32" cy="33" r="7" fill="#ffffff"/>
+
+</svg>

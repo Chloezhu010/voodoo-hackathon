@@ -1,6 +1,6 @@
 import { COLOR_IDS } from '../config/colors.js';
 
-import type { BlockRecord, BoxColumn, ColorId, IdGen, LevelData } from './types.js';
+import type { BlockRecord, BoxColumn, ColorId, IdGen, LevelData, TrayConfig, WallCell } from './types.js';
 
 export interface EditorValidationMismatch {
   color: ColorId;
@@ -43,6 +43,8 @@ export class EditorState {
   gridCols = 5;
   gridRows = 5;
   blocks: BlockRecord[] = [];
+  walls: WallCell[] = [];
+  trays: TrayConfig[] = [];
   boxColumns: BoxColumn[];
   conveyorSpeed = 0.18;
   gravityFlipEnabled = false;
@@ -224,6 +226,7 @@ export class EditorState {
       difficulty: 0,
       board_size: { cols: this.gridCols, rows: this.gridRows },
       blocks: sortedBlocks,
+      walls: this.walls.map((wall) => ({ col: wall.col, row: wall.row })),
       box_columns: this.boxColumns.map((column) => ({ col: column.col, boxes: [...column.boxes] })),
       editor_metadata: {
         schema_version: 1,
@@ -252,6 +255,9 @@ export class EditorState {
       color: block.color,
       is_hidden: Boolean(block.is_hidden),
     }));
+    this.walls = Array.isArray(data.walls)
+      ? data.walls.map((wall) => ({ col: Number(wall.col), row: Number(wall.row) }))
+      : [];
     this.boxColumns = Array.isArray(data.box_columns)
       ? data.box_columns.map((column) => ({ col: column.col, boxes: [...column.boxes] }))
       : this._deriveBoxColumns(this.blocks);
@@ -263,6 +269,8 @@ export class EditorState {
 
   clear(): void {
     this.blocks = [];
+    this.walls = [];
+    this.trays = [];
     this.boxColumns = this._emptyBoxColumns();
   }
 

@@ -1,5 +1,5 @@
 import { computeCoverage, isBoardCleared } from '../sim/coverage.js';
-import type { BlockRecord } from '../sim/types.js';
+import type { BlockRecord, BoardSize, WallCell } from '../sim/types.js';
 
 /**
  * Minimal Block-entity contract this manager needs. Kept structural so the
@@ -17,9 +17,13 @@ export interface BlockLike {
  */
 export class BoardManager {
   readonly blocks: BlockLike[];
+  readonly boardSize: BoardSize;
+  readonly walls: readonly WallCell[];
 
-  constructor(blocks: BlockLike[]) {
+  constructor(blocks: BlockLike[], boardSize: BoardSize = { cols: 5, rows: 5 }, walls: readonly WallCell[] = []) {
     this.blocks = blocks;
+    this.boardSize = boardSize;
+    this.walls = walls;
     this.recomputeCoverage();
   }
 
@@ -31,7 +35,10 @@ export class BoardManager {
       z: block.data.z,
       isCleared: block.isCleared,
     }));
-    const coverage = computeCoverage(records);
+    const coverage = computeCoverage(records, {
+      boardSize: this.boardSize,
+      walls: this.walls,
+    });
 
     for (const block of this.blocks) {
       if (block.isCleared) continue;

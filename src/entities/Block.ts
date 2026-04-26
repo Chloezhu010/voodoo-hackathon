@@ -1,3 +1,4 @@
+import { ART_KEYS, blockArtKey, hasArtTexture } from '../assets/artAssets.js';
 import { getColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
 import type { BlockRecord, ColorId } from '../sim/types.js';
@@ -21,6 +22,7 @@ export interface BlockVisualOptions {
   radius?: number;
   showQuestion?: boolean;
   covered?: boolean;
+  showMarbles?: boolean;
   alpha?: number;
 }
 
@@ -73,11 +75,21 @@ export class Block {
     const colorDef = getColorDefinition(colorId);
     const showQuestion = Boolean(options.showQuestion);
     const isCovered = Boolean(options.covered);
+    const showMarbles = options.showMarbles ?? (!showQuestion && !isCovered);
     const alpha = options.alpha ?? 1;
     const fill = showQuestion ? 0xaebbd0 : colorDef.hex;
 
     const container = scene.add.container(0, 0);
     container.setAlpha(alpha);
+
+    const assetKey = showQuestion
+      ? ART_KEYS.blockHidden
+      : blockArtKey(colorId, showMarbles ? 'open' : 'covered');
+    if (hasArtTexture(scene, assetKey)) {
+      const image = scene.add.image(0, 0, assetKey).setDisplaySize(size, size);
+      container.add(image);
+      return container;
+    }
 
     const g = scene.add.graphics();
     g.fillStyle(0x2d477a, 0.22);
@@ -97,13 +109,37 @@ export class Block {
     g.lineStyle(Math.max(3, size * 0.04), 0x29457a, 0.34);
     g.strokeRoundedRect(-size / 2, -size / 2, size, size, radius);
 
-    if (!showQuestion) {
-      g.fillStyle(0xffffff, isCovered ? 0.1 : 0.25);
-      g.fillCircle(0, 0, size * 0.25);
-      g.fillStyle(0xffffff, isCovered ? 0.1 : 0.18);
-      g.fillCircle(-size * 0.09, -size * 0.1, size * 0.08);
-      g.lineStyle(Math.max(2, size * 0.03), 0x23385f, isCovered ? 0.24 : 0.18);
-      g.strokeCircle(0, 0, size * 0.25);
+    if (!showQuestion && showMarbles) {
+      const traySize = size * 0.74;
+      const trayX = -traySize / 2;
+      const trayY = -traySize / 2 + size * 0.03;
+      const marbleRadius = size * 0.105;
+      const spacing = traySize / 3.4;
+
+      g.fillStyle(0x173968, 0.2);
+      g.fillRoundedRect(trayX, trayY + size * 0.04, traySize, traySize * 0.86, radius * 0.7);
+      g.fillStyle(0xffffff, 0.16);
+      g.fillRoundedRect(trayX + size * 0.04, trayY + size * 0.03, traySize - size * 0.08, size * 0.15, radius * 0.48);
+
+      for (let row = 0; row < 3; row += 1) {
+        for (let col = 0; col < 3; col += 1) {
+          const cx = (col - 1) * spacing;
+          const cy = trayY + size * 0.2 + row * spacing;
+          g.fillStyle(0x000000, 0.12);
+          g.fillCircle(cx + size * 0.025, cy + size * 0.04, marbleRadius);
+          g.fillStyle(colorDef.hex, 1);
+          g.fillCircle(cx, cy, marbleRadius);
+          g.fillStyle(0xffffff, 0.24);
+          g.fillCircle(cx - marbleRadius * 0.32, cy - marbleRadius * 0.32, marbleRadius * 0.34);
+        }
+      }
+      g.lineStyle(Math.max(2, size * 0.03), 0x23385f, 0.2);
+      g.strokeRoundedRect(trayX, trayY + size * 0.04, traySize, traySize * 0.86, radius * 0.7);
+    } else if (!showQuestion) {
+      g.fillStyle(0x1f355c, isCovered ? 0.22 : 0.1);
+      g.fillRoundedRect(-size * 0.32, -size * 0.18, size * 0.64, size * 0.42, radius * 0.55);
+      g.fillStyle(0xffffff, isCovered ? 0.08 : 0.16);
+      g.fillCircle(-size * 0.08, -size * 0.08, size * 0.08);
     } else {
       g.fillStyle(0xffffff, 0.14);
       g.fillCircle(0, 0, size * 0.25);
@@ -137,6 +173,7 @@ export class Block {
     const visual = Block.createVisual(this.scene, this.data.color, {
       showQuestion,
       covered: this.isCovered,
+      showMarbles: !this.isCovered,
       size: CONFIG.BLOCK_SIZE,
     });
     this.visualLayer.add(visual);

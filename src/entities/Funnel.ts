@@ -1,4 +1,4 @@
-import { CONFIG, UI } from '../config/constants.js';
+import { CONFIG } from '../config/constants.js';
 
 import type { Conveyor } from './Conveyor.js';
 import type { Marble } from './Marble.js';
@@ -33,43 +33,7 @@ export class Funnel {
   }
 
   render(): void {
-    const area = CONFIG.FUNNEL_AREA;
-    const topLeft = { x: area.x, y: area.y + 10 };
-    const topRight = { x: area.x + area.width, y: area.y + 10 };
-    const bottomRight = { x: area.x + area.width * 0.58, y: area.y + area.height - 10 };
-    const bottomLeft = { x: area.x + area.width * 0.42, y: area.y + area.height - 10 };
-
     this.graphics.clear();
-    this.graphics.fillStyle(0x2d477a, 0.18);
-    this.graphics.lineStyle(8, UI.BLUE_STROKE, 0.72);
-    this.graphics.beginPath();
-    this.graphics.moveTo(topLeft.x - 8, topLeft.y + 8);
-    this.graphics.lineTo(topRight.x + 8, topRight.y + 8);
-    this.graphics.lineTo(bottomRight.x + 6, bottomRight.y + 8);
-    this.graphics.lineTo(bottomLeft.x - 6, bottomLeft.y + 8);
-    this.graphics.closePath();
-    this.graphics.fillPath();
-    this.graphics.strokePath();
-
-    this.graphics.fillStyle(0xf4f8ff, 1);
-    this.graphics.lineStyle(4, 0xffffff, 0.7);
-    this.graphics.beginPath();
-    this.graphics.moveTo(topLeft.x, topLeft.y);
-    this.graphics.lineTo(topRight.x, topRight.y);
-    this.graphics.lineTo(bottomRight.x, bottomRight.y);
-    this.graphics.lineTo(bottomLeft.x, bottomLeft.y);
-    this.graphics.closePath();
-    this.graphics.fillPath();
-    this.graphics.strokePath();
-
-    this.graphics.fillStyle(0x000000, 0.1);
-    this.graphics.fillRoundedRect(
-      area.x + area.width * 0.42,
-      area.y + area.height - 8,
-      area.width * 0.16,
-      16,
-      8,
-    );
   }
 
   reserveSlot(marble: Marble): FunnelSlot {
@@ -165,21 +129,36 @@ export class Funnel {
 
   private _collideWalls(particle: FunnelParticle): void {
     const area = CONFIG.FUNNEL_AREA;
-    const leftWall = {
-      ax: area.x,
-      ay: area.y + 10,
-      bx: area.x + area.width * 0.42,
-      by: area.y + area.height - 10,
-    };
-    const rightWall = {
-      ax: area.x + area.width,
-      ay: area.y + 10,
-      bx: area.x + area.width * 0.58,
-      by: area.y + area.height - 10,
-    };
+    const centerX = this._centerX();
+    const neckBottomY = this._floorY() + CONFIG.MARBLE_RADIUS * 0.25;
+    const wallSegments = [
+      {
+        ax: area.x - 10,
+        ay: area.y + 18,
+        bx: centerX - 92,
+        by: area.y + area.height * 0.62,
+      },
+      {
+        ax: centerX - 92,
+        ay: area.y + area.height * 0.62,
+        bx: centerX - 56,
+        by: neckBottomY,
+      },
+      {
+        ax: area.x + area.width + 10,
+        ay: area.y + 18,
+        bx: centerX + 92,
+        by: area.y + area.height * 0.62,
+      },
+      {
+        ax: centerX + 92,
+        ay: area.y + area.height * 0.62,
+        bx: centerX + 56,
+        by: neckBottomY,
+      },
+    ];
 
-    this._collideLine(particle, leftWall);
-    this._collideLine(particle, rightWall);
+    wallSegments.forEach((wall) => this._collideLine(particle, wall));
   }
 
   private _collideLine(
@@ -337,20 +316,21 @@ export class Funnel {
     const centerX = this._centerX();
     return [
       centerX,
-      area.x + area.width * 0.18,
-      area.x + area.width * 0.82,
-      area.x + area.width * 0.1,
-      area.x + area.width * 0.9,
-      centerX - 22,
-      centerX + 22,
-      area.x + area.width * 0.28,
-      area.x + area.width * 0.72,
+      area.x + area.width * 0.14,
+      area.x + area.width * 0.86,
+      area.x + area.width * 0.08,
+      area.x + area.width * 0.92,
+      centerX - 34,
+      centerX + 34,
+      area.x + area.width * 0.26,
+      area.x + area.width * 0.74,
     ];
   }
 
   private _floorY(): number {
-    const area = CONFIG.FUNNEL_AREA;
-    return area.y + area.height - CONFIG.MARBLE_RADIUS - 4;
+    const conveyor = CONFIG.CONVEYOR;
+    const conveyorTopY = conveyor.AREA.y + conveyor.TRACK_TOP_OFFSET;
+    return conveyorTopY - CONFIG.MARBLE_DISPLAY_SIZE / 2 - 8;
   }
 
   private _centerX(): number {

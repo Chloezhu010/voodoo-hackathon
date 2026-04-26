@@ -72,6 +72,32 @@ function tallyBlocks(levelData: LevelData): Map<ColorId, number> {
   return counts;
 }
 
+function assertWalls(levelData: LevelData): void {
+  if (levelData.walls === undefined) return;
+  if (!Array.isArray(levelData.walls)) throw new Error('Level walls must be an array.');
+
+  const occupiedBlocks = new Set(levelData.blocks.map((block) => `${block.col}:${block.row}`));
+  const occupiedWalls = new Set<string>();
+  levelData.walls.forEach((wall, index) => {
+    if (!Number.isInteger(wall.col) || !Number.isInteger(wall.row)) {
+      throw new Error(`Wall ${index} col/row must be integers.`);
+    }
+    if (
+      wall.col < 0
+      || wall.col >= levelData.board_size.cols
+      || wall.row < 0
+      || wall.row >= levelData.board_size.rows
+    ) {
+      throw new Error(`Wall ${index} is outside board.`);
+    }
+
+    const key = `${wall.col}:${wall.row}`;
+    if (occupiedWalls.has(key)) throw new Error(`Duplicate wall cell ${key}.`);
+    if (occupiedBlocks.has(key)) throw new Error(`Wall ${key} overlaps a block.`);
+    occupiedWalls.add(key);
+  });
+}
+
 function tallyBoxColumns(columns: BoxColumn[]): { counts: Map<ColorId, number>; total: number } {
   const seenColumns = new Set<number>();
   const counts = new Map<ColorId, number>();
@@ -115,6 +141,7 @@ export function validateLevel(levelData: LevelData | null | undefined): LevelDat
   assertConveyorSpeed(levelData);
 
   const blockColors = tallyBlocks(levelData);
+  assertWalls(levelData);
   const { counts: boxColors, total: boxCount } = tallyBoxColumns(levelData.box_columns);
 
   const totalMarbles = levelData.blocks.length * CONFIG.MARBLES_PER_BLOCK;

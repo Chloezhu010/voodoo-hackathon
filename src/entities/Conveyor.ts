@@ -1,3 +1,4 @@
+import { ART_KEYS, hasArtTexture } from '../assets/artAssets.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { ConveyorTrack } from '../sim/conveyorTrack.js';
 import type { ColorId } from '../sim/types.js';
@@ -17,6 +18,7 @@ export class Conveyor {
   private _reservedSlots = new Set<number>();
   slotCount = CONFIG.CONVEYOR.TOTAL_CAPACITY;
   trackGraphics?: Phaser.GameObjects.Graphics;
+  trackImage?: Phaser.GameObjects.Image;
   slotGraphics?: Phaser.GameObjects.Graphics;
 
   constructor(scene: Phaser.Scene, speed: number = CONFIG.CONVEYOR.DEFAULT_SPEED) {
@@ -27,14 +29,22 @@ export class Conveyor {
   }
 
   private _renderTrack(): void {
-    const graphics = this.scene.add.graphics();
-    graphics.setDepth(35);
-    this._strokeTrack(graphics, 52, UI.BLUE_STROKE, 0.95);
-    this._strokeTrack(graphics, 42, 0xd9e7f6, 1);
-    this._strokeTrack(graphics, 28, 0x8b97ab, 1);
-    this._strokeTrack(graphics, 18, 0x5f687d, 1);
-    this._strokeTrack(graphics, 3, 0xffffff, 0.38);
-    this.trackGraphics = graphics;
+    const area = CONFIG.CONVEYOR.AREA;
+    if (hasArtTexture(this.scene, ART_KEYS.conveyorTrack)) {
+      this.trackImage = this.scene.add.image(area.x, area.y, ART_KEYS.conveyorTrack)
+        .setOrigin(0)
+        .setDisplaySize(area.width, area.height)
+        .setDepth(35);
+    } else {
+      const graphics = this.scene.add.graphics();
+      graphics.setDepth(35);
+      this._strokeTrack(graphics, 52, UI.BLUE_STROKE, 0.95);
+      this._strokeTrack(graphics, 42, 0xd9e7f6, 1);
+      this._strokeTrack(graphics, 28, 0x8b97ab, 1);
+      this._strokeTrack(graphics, 18, 0x5f687d, 1);
+      this._strokeTrack(graphics, 3, 0xffffff, 0.38);
+      this.trackGraphics = graphics;
+    }
 
     this.slotGraphics = this.scene.add.graphics();
     this.slotGraphics.setDepth(36);
@@ -243,6 +253,7 @@ export class Conveyor {
   setPaused(paused: boolean): void {
     this.isPaused = paused;
     this.trackGraphics?.setAlpha(paused ? 0.45 : 1);
+    this.trackImage?.setAlpha(paused ? 0.45 : 1);
     this.slotGraphics?.setAlpha(paused ? 0.35 : 1);
   }
 
@@ -252,18 +263,16 @@ export class Conveyor {
 
   private _drawSlots(): void {
     if (!this.slotGraphics) return;
-    const occupied = this._usedSlots();
     const radius = CONFIG.MARBLE_RADIUS + 5;
     this.slotGraphics.clear();
 
     for (let i = 0; i < this.slotCount; i += 1) {
       const pos = this._slotPosition(i);
-      const isUsed = occupied.has(i);
-      this.slotGraphics.fillStyle(isUsed ? 0xffffff : 0x37445c, isUsed ? 0.18 : 0.7);
+      this.slotGraphics.fillStyle(0x565b70, 0.96);
       this.slotGraphics.fillCircle(pos.x, pos.y, radius - 7);
-      this.slotGraphics.fillStyle(0xffffff, isUsed ? 0.22 : 0.16);
+      this.slotGraphics.fillStyle(0xffffff, 0.11);
       this.slotGraphics.fillCircle(pos.x - 3, pos.y - 3, radius - 11);
-      this.slotGraphics.lineStyle(2, 0xffffff, isUsed ? 0.42 : 0.2);
+      this.slotGraphics.lineStyle(2, 0xffffff, 0.18);
       this.slotGraphics.strokeCircle(pos.x, pos.y, radius - 7);
     }
   }
@@ -325,13 +334,4 @@ export class Conveyor {
     ));
   }
 
-  private _usedSlots(): Set<number> {
-    const used = new Set(this._reservedSlots);
-    for (const marble of this.marbles) {
-      if (marble.state === 'on-conveyor' && Number.isInteger(marble.slotIndex) && marble.slotIndex >= 0) {
-        used.add(marble.slotIndex);
-      }
-    }
-    return used;
-  }
 }

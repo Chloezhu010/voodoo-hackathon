@@ -1,3 +1,4 @@
+import { boxArtKey, hasArtTexture, marbleArtKey } from '../assets/artAssets.js';
 import { getColorDefinition } from '../config/colors.js';
 import { CONFIG } from '../config/constants.js';
 import { canAcceptBoxSlot, reserveBoxSlotIndex } from '../sim/boxColumnRules.js';
@@ -41,33 +42,41 @@ export class Box {
     const { BOX_WIDTH: width, BOX_HEIGHT: height, SLOT_RADIUS: radius } = CONFIG.BOX_COLUMNS;
     const color = getColorDefinition(this.color);
 
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x2d477a, 0.2);
-    bg.fillRoundedRect(-width / 2 + 5, -height / 2 + 7, width, height, 10);
-    bg.fillStyle(0x000000, 0.14);
-    bg.fillRoundedRect(-width / 2, -height / 2 + 8, width, height, 8);
-    bg.fillStyle(color.hex, 1);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-    bg.fillStyle(0xffffff, 0.22);
-    bg.fillRoundedRect(-width / 2 + 6, -height / 2 + 5, width - 12, 13, 7);
-    bg.fillStyle(0x000000, 0.12);
-    bg.fillRoundedRect(-width / 2 + 4, height / 2 - 13, width - 8, 9, 5);
-    bg.lineStyle(3, 0x29457a, 0.4);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
-    this.container.add(bg);
+    const boxKey = boxArtKey(this.color, 'empty');
+    if (hasArtTexture(this.scene, boxKey)) {
+      this.container.add(this.scene.add.image(0, 0, boxKey).setDisplaySize(width, height));
+    } else {
+      const bg = this.scene.add.graphics();
+      bg.fillStyle(0x2d477a, 0.2);
+      bg.fillRoundedRect(-width / 2 + 5, -height / 2 + 7, width, height, 10);
+      bg.fillStyle(0x000000, 0.14);
+      bg.fillRoundedRect(-width / 2, -height / 2 + 8, width, height, 8);
+      bg.fillStyle(color.hex, 1);
+      bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+      bg.fillStyle(0xffffff, 0.22);
+      bg.fillRoundedRect(-width / 2 + 6, -height / 2 + 5, width - 12, 13, 7);
+      bg.fillStyle(0x000000, 0.12);
+      bg.fillRoundedRect(-width / 2 + 4, height / 2 - 13, width - 8, 9, 5);
+      bg.lineStyle(3, 0x29457a, 0.4);
+      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+      this.container.add(bg);
+    }
 
     this.slotMarkers = [];
     for (let i = 0; i < this.capacity; i += 1) {
       const x = -width / 2 + (i + 1) * (width / (this.capacity + 1));
-      const marker = this.scene.add.graphics();
-      marker.fillStyle(0x23385f, 0.28);
-      marker.fillCircle(x, 0, radius + 3);
-      marker.fillStyle(0xffffff, 0.16);
-      marker.fillCircle(x - 2, -2, radius);
-      marker.lineStyle(2, 0xffffff, 0.5);
-      marker.strokeCircle(x, 0, radius);
-      this.container.add(marker);
-      this.slotMarkers.push({ x, y: 0 });
+      const y = hasArtTexture(this.scene, boxKey) ? -5 : 0;
+      if (!hasArtTexture(this.scene, boxKey)) {
+        const marker = this.scene.add.graphics();
+        marker.fillStyle(0x23385f, 0.28);
+        marker.fillCircle(x, y, radius + 3);
+        marker.fillStyle(0xffffff, 0.16);
+        marker.fillCircle(x - 2, y - 2, radius);
+        marker.lineStyle(2, 0xffffff, 0.5);
+        marker.strokeCircle(x, y, radius);
+        this.container.add(marker);
+      }
+      this.slotMarkers.push({ x, y });
     }
   }
 
@@ -104,17 +113,23 @@ export class Box {
       : this.visual_filled;
     const marker = this.slotMarkers[slotIdx]!;
     const color = getColorDefinition(marble?.color ?? this.color);
+    const marbleKey = marbleArtKey(marble?.color ?? this.color);
 
-    const filled = this.scene.add.graphics();
-    filled.fillStyle(0x23385f, 0.2);
-    filled.fillCircle(marker.x + 2, marker.y + 3, CONFIG.BOX_COLUMNS.SLOT_RADIUS + 1);
-    filled.fillStyle(color.hex, 1);
-    filled.fillCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
-    filled.fillStyle(0xffffff, 0.42);
-    filled.fillCircle(marker.x - 4, marker.y - 4, 4);
-    filled.lineStyle(2, 0xffffff, 0.36);
-    filled.strokeCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
-    this.container.add(filled);
+    if (hasArtTexture(this.scene, marbleKey)) {
+      const filled = this.scene.add.image(marker.x, marker.y, marbleKey).setDisplaySize(28, 28);
+      this.container.add(filled);
+    } else {
+      const filled = this.scene.add.graphics();
+      filled.fillStyle(0x23385f, 0.2);
+      filled.fillCircle(marker.x + 2, marker.y + 3, CONFIG.BOX_COLUMNS.SLOT_RADIUS + 1);
+      filled.fillStyle(color.hex, 1);
+      filled.fillCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
+      filled.fillStyle(0xffffff, 0.42);
+      filled.fillCircle(marker.x - 4, marker.y - 4, 4);
+      filled.lineStyle(2, 0xffffff, 0.36);
+      filled.strokeCircle(marker.x, marker.y, CONFIG.BOX_COLUMNS.SLOT_RADIUS);
+      this.container.add(filled);
+    }
 
     this.visual_filled += 1;
     this.scene.tweens.add({

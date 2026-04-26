@@ -1,3 +1,4 @@
+import { hasArtTexture, marbleArtKey } from '../assets/artAssets.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { addBubbleButton, addOutlinedText, drawSkyBackground } from '../ui/casualStyle.js';
 
@@ -54,13 +55,27 @@ export class MenuScene extends Phaser.Scene {
     g.setDepth(-20);
 
     ([
-      [132, 430, 0xff9f1a, 32],
-      [202, 488, 0xffe424, 22],
-      [552, 430, 0x18d757, 30],
-      [494, 500, 0x315df4, 24],
-      [146, 872, 0xff5aa7, 26],
-      [584, 898, 0xa66bf0, 34],
-    ] as const).forEach(([x, y, color, radius]) => {
+      [132, 430, 'orange', 64],
+      [202, 488, 'yellow', 44],
+      [552, 430, 'green', 60],
+      [494, 500, 'blue', 48],
+      [146, 872, 'pink', 52],
+      [584, 898, 'purple', 68],
+    ] as const).forEach(([x, y, colorId, size]) => {
+      const key = marbleArtKey(colorId);
+      if (hasArtTexture(this, key)) {
+        this.add.image(x, y, key).setDisplaySize(size, size).setDepth(-10);
+        return;
+      }
+      const radius = size / 2;
+      const color = {
+        orange: 0xff9f1a,
+        yellow: 0xffe424,
+        green: 0x18d757,
+        blue: 0x315df4,
+        pink: 0xff5aa7,
+        purple: 0xa66bf0,
+      }[colorId];
       g.fillStyle(0x3c5b92, 0.24);
       g.fillCircle(x + 5, y + 7, radius);
       g.fillStyle(color, 1);

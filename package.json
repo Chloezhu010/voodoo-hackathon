@@ -4,12 +4,17 @@
   "type": "module",
   "scripts": {
     "test": "tsx scripts/validate.mjs && tsx scripts/sim-smoke.mjs && tsx scripts/test-conveyor-track.mjs",
-    "test:browser": "node scripts/smoke-browser.mjs",
+    "test:browser": "node scripts/smoke-browser.mjs --quick",
+    "test:browser:quick": "node scripts/smoke-browser.mjs --quick",
+    "test:browser:full": "node scripts/smoke-browser.mjs --full",
+    "verify:quick": "npm run typecheck && npm test",
+    "verify:full": "npm run verify:quick && npm run build && npm run test:browser:full",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit",
+    "render:art": "node scripts/render-art-assets.mjs",
     "format": "prettier --write \"src/**/*.{js,mjs,ts,json,css,html}\""
   },
   "devDependencies": {

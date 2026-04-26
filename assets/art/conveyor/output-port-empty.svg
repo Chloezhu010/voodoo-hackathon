@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="48" viewBox="0 0 90 48" fill="none">
+
+  <path d="M6 13H84L45 45Z" fill="#24325f" opacity="0.24"/>
+  <path d="M6 4H84L45 36Z" fill="#d8e0f1" opacity="0.95" stroke="#506ea0" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M20 9H70" stroke="#ffffff" stroke-width="4" opacity="0.2" stroke-linecap="round"/>
+
+</svg>

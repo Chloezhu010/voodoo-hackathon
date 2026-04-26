@@ -1,3 +1,4 @@
+import { hasArtTexture, outputPortArtKey } from '../assets/artAssets.js';
 import { CONFIG, UI } from '../config/constants.js';
 import type { ConveyorTrack } from '../sim/conveyorTrack.js';
 
@@ -11,6 +12,7 @@ export class OutputPort {
   readonly y: number;
   readonly t: number;
   readonly gateGraphics: Phaser.GameObjects.Graphics;
+  readonly gateImage: Phaser.GameObjects.Image | null;
 
   constructor(
     scene: Phaser.Scene,
@@ -30,6 +32,13 @@ export class OutputPort {
     this.y = conveyorTrack.bottomY + 20;
     this.t = conveyorTrack.tForLowerLayerX(this.x);
 
+    const emptyKey = outputPortArtKey(null);
+    this.gateImage = hasArtTexture(scene, emptyKey)
+      ? scene.add.image(this.x, this.y, emptyKey)
+        .setOrigin(0.5, 0)
+        .setDisplaySize(CONFIG.OUTPUT_PORTS.PORT_WIDTH, 48)
+        .setDepth(55)
+      : null;
     this.gateGraphics = scene.add.graphics();
     this.gateGraphics.setDepth(55);
     this.notifyColumnChanged();
@@ -38,6 +47,12 @@ export class OutputPort {
   notifyColumnChanged(): void {
     this.gateGraphics.clear();
     const topColor = this.boxColumn.getTopBoxColor();
+    const imageKey = outputPortArtKey(topColor?.id ?? null);
+    if (this.gateImage && hasArtTexture(this.scene, imageKey)) {
+      this.gateImage.setTexture(imageKey);
+      return;
+    }
+
     if (topColor) {
       this.gateGraphics.fillStyle(topColor.hex, 0.92);
       this.gateGraphics.lineStyle(4, 0xffffff, 0.46);

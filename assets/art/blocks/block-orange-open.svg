@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none">
+
+  <rect x="6" y="10" width="88" height="86" rx="16" fill="#1b2a5a" opacity="0.22"/>
+  <rect x="1.5" y="6.5" width="93" height="88" rx="16" fill="#b84000" stroke="#171723" stroke-width="3"/>
+  <rect x="1.5" y="1.5" width="93" height="88" rx="16" fill="#ffa407" stroke="#1a1b2a" stroke-width="3"/>
+  <path d="M14 6H74C83 6 90 13 90 22V29C70 37 24 37 7 27V21C7 13 10 8 14 6Z" fill="#ffffff" opacity="0.13"/>
+  <rect x="5" y="68" width="86" height="18" rx="9" fill="#b84000" opacity="0.22"/>
+  <rect x="11" y="13" width="74" height="68" rx="13" fill="#f06a05" opacity="0.56"/>
+  <rect x="14" y="16" width="68" height="16" rx="8" fill="#ffffff" opacity="0.08"/>
+
+  <circle cx="28" cy="30" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="27" cy="27" r="10.5" fill="#ffa407"/>
+  <circle cx="24" cy="23" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="49" cy="30" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="48" cy="27" r="10.5" fill="#ffa407"/>
+  <circle cx="45" cy="23" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="70" cy="30" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="69" cy="27" r="10.5" fill="#ffa407"/>
+  <circle cx="66" cy="23" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="28" cy="50" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="27" cy="47" r="10.5" fill="#ffa407"/>
+  <circle cx="24" cy="43" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="49" cy="50" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="48" cy="47" r="10.5" fill="#ffa407"/>
+  <circle cx="45" cy="43" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="70" cy="50" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="69" cy="47" r="10.5" fill="#ffa407"/>
+  <circle cx="66" cy="43" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="28" cy="70" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="27" cy="67" r="10.5" fill="#ffa407"/>
+  <circle cx="24" cy="63" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="49" cy="70" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="48" cy="67" r="10.5" fill="#ffa407"/>
+  <circle cx="45" cy="63" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="70" cy="70" r="10.5" fill="#b84000" opacity="0.3"/>
+  <circle cx="69" cy="67" r="10.5" fill="#ffa407"/>
+  <circle cx="66" cy="63" r="3.3" fill="#ffffff" opacity="0.2"/>
+  <rect x="11" y="13" width="74" height="68" rx="13" stroke="#1a1b2a" stroke-width="2.5" opacity="0.34"/>
+  <rect x="4" y="3" width="88" height="84" rx="14" stroke="#ffffff" stroke-width="2.5" opacity="0.18"/>
+
+
+</svg>
