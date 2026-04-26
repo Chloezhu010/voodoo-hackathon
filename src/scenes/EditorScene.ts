@@ -1,6 +1,12 @@
 import { COLOR_IDS, getColorDefinition } from '../config/colors.js';
 import { CONFIG, UI } from '../config/constants.js';
 import { Block } from '../entities/Block.js';
+import {
+  analyzeLevelWithGemini,
+  getGeminiApiKey,
+  storeGeminiApiKey,
+  type GeminiBriefReport,
+} from '../services/geminiBrief.js';
 import { EditorState } from '../sim/editorState.js';
 import { validateLevel } from '../sim/levelLoader.js';
 import type { BlockRecord, ColorId } from '../sim/types.js';
@@ -487,6 +493,9 @@ export class EditorScene extends Phaser.Scene {
     const json = this.editorState.exportJSON();
     const modal = this._makeModal('Exported JSON');
     const display = json.length > 2600 ? `${json.slice(0, 2600)}\n...` : json;
+    const outputBg = this.add.rectangle(0, -40, 540, 520, 0x151522, 1);
+    outputBg.setStrokeStyle(2, 0xffffff, 0.14);
+    modal.add(outputBg);
     const text = this.add.text(-270, -275, display, {
       fontSize: '13px', color: '#a0ffa0', fontStyle: 'bold', wordWrap: { width: 540 },
     }).setOrigin(0, 0);
@@ -553,30 +562,127 @@ export class EditorScene extends Phaser.Scene {
     modal.add(this._makeButton(205, 336, 150, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
   }
 
-  private _showAgentBriefModal(): void {
+  private async _showAgentBriefModal(): Promise<void> {
     const brief = this.editorState.getAgentBrief();
     const modal = this._makeModal('AI Level Brief');
-    modal.add(this.add.text(-260, -260, brief, {
-      fontSize: '18px', color: UI.DARK_TEXT, fontStyle: 'bold', wordWrap: { width: 520 },
-    }).setOrigin(0, 0));
-    modal.add(this.add.text(-260, 120, this.editorState.exportJSON(), {
-      fontSize: '12px', color: '#4d668f', fontStyle: 'bold', wordWrap: { width: 520 },
-    }).setOrigin(0, 0));
-    modal.add(this._makeButton(-115, 336, 190, 58, 'COPY', UI.PRIMARY, async () => {
+    const copyState = { text: brief };
+    const status = this.add.text(0, -310, '', {
+      fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 520 },
+    }).setOrigin(0.5);
+    const content = this.add.text(-260, -270, brief, {
+      fontSize: '16px', color: UI.DARK_TEXT, fontStyle: 'bold', wordWrap: { width: 520 },
+    }).setOrigin(0, 0);
+    modal.add([status, content]);
+
+    const runAnalysis = () => this._runGeminiBriefAnalysis(brief, status, content, copyState);
+    this._addAgentBriefButtons(modal, status, copyState, runAnalysis);
+    await runAnalysis();
+  }
+
+  private _addAgentBriefButtons(
+    modal: Phaser.GameObjects.Container,
+    status: Phaser.GameObjects.Text,
+    copyState: { text: string },
+    runAnalysis: () => Promise<void>,
+  ): void {
+    modal.add(this._makeButton(-230, 336, 124, 58, 'SET KEY', UI.PANEL_DARK, () => {
+      const apiKey = window.prompt('Gemini API key');
+      if (!apiKey) return;
+      storeGeminiApiKey(apiKey);
+      status.setText('Gemini API key saved locally.');
+    }));
+    modal.add(this._makeButton(-76, 336, 124, 58, 'RUN', UI.PRIMARY, () => {
+      void runAnalysis();
+    }));
+    modal.add(this._makeButton(76, 336, 124, 58, 'COPY', UI.PANEL_DARK, async () => {
       try {
-        await navigator.clipboard.writeText(`${brief}\n\n${this.editorState.exportJSON()}`);
+        await navigator.clipboard.writeText(copyState.text);
         this._showToast('Copied AI brief');
       } catch {
         this._showToast('Clipboard unavailable');
       }
     }));
-    modal.add(this._makeButton(115, 336, 190, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
+    modal.add(this._makeButton(230, 336, 124, 58, 'CLOSE', UI.PANEL_DARK, () => this._closeModal()));
+  }
+
+  private async _runGeminiBriefAnalysis(
+    brief: string,
+    status: Phaser.GameObjects.Text,
+    content: Phaser.GameObjects.Text,
+    copyState: { text: string },
+  ): Promise<void> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      status.setText('Missing Gemini API key. Set VITE_GEMINI_API_KEY or use SET KEY.');
+      return;
+    }
+
+    status.setText('Analyzing with gemini-3-flash-preview...');
+    try {
+      const report = await analyzeLevelWithGemini(
+        this.editorState.toLevelData(),
+        this.editorState.getValidationStatus(),
+        brief,
+        apiKey,
+        {
+          onDelta: (text) => {
+            copyState.text = text;
+            content.setText(text);
+            status.setText('Streaming structured AI brief...');
+          },
+        },
+      );
+      copyState.text = JSON.stringify(report, null, 2);
+      content.setText(this._formatGeminiBrief(report));
+      status.setText('Structured AI brief ready.');
+    } catch (error) {
+      status.setText((error as Error).message);
+    }
+  }
+
+  private _formatGeminiBrief(report: GeminiBriefReport): string {
+    const roles = report.roleReviews
+      .map((review) => `${this._roleLabel(review.role)} [${review.severity}]: ${review.finding}`)
+      .join('\n');
+    const stuck = report.likelyStuckPoints.map((item) => `- ${item}`).join('\n') || '- No clear stuck points.';
+    const changes = report.recommendedChanges
+      .map((item) => `- ${item.priority}: ${item.change} (${item.reason})`)
+      .join('\n') || '- None.';
+
+    return [
+      `Verdict: ${report.verdict} / ${report.progressionPlacement} / difficulty ${report.difficultyScore}/10`,
+      `Confidence: ${Math.round(report.confidence * 100)}%`,
+      '',
+      report.teamSummary,
+      '',
+      `Solvability: ${report.solvability.status}`,
+      report.solvability.reason,
+      '',
+      'Team review:',
+      roles,
+      '',
+      'Likely stuck points:',
+      stuck,
+      '',
+      'Recommended changes:',
+      changes,
+    ].join('\n');
+  }
+
+  private _roleLabel(role: GeminiBriefReport['roleReviews'][number]['role']): string {
+    return {
+      level_designer: 'Level Designer',
+      gameplay_tester: 'Gameplay Tester',
+      product_manager: 'Product Manager',
+      balancing_critic: 'Balancing Critic',
+      iteration_partner: 'Iteration Partner',
+    }[role];
   }
 
   private _showConfirmClear(): void {
     const modal = this._makeModal('Clear All?');
     modal.add(this.add.text(0, -40, 'Remove all blocks from the editor?', {
-      fontSize: '24px', color: UI.TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
+      fontSize: '24px', color: UI.DARK_TEXT, fontStyle: 'bold', align: 'center', wordWrap: { width: 480 },
     }).setOrigin(0.5));
     modal.add(this._makeButton(-120, 125, 190, 62, 'CLEAR', 0x923653, () => {
       this.editorState.clear();
@@ -596,11 +702,11 @@ export class EditorScene extends Phaser.Scene {
     overlay.setInteractive();
     modal.add(overlay);
 
-    const panel = this.add.rectangle(0, 0, 600, 820, UI.PANEL, 1);
+    const panel = this.add.rectangle(0, 0, 600, 820, UI.PANEL_LIGHT, 1);
     panel.setStrokeStyle(3, 0xffffff, 0.18);
     modal.add(panel);
 
-    modal.add(this.add.text(0, -365, title, { fontSize: '32px', color: UI.TEXT, fontStyle: 'bold' }).setOrigin(0.5));
+    modal.add(this.add.text(0, -365, title, { fontSize: '32px', color: UI.DARK_TEXT, fontStyle: 'bold' }).setOrigin(0.5));
 
     this.modal = modal;
     return modal;
