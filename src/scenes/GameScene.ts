@@ -415,7 +415,6 @@ export class GameScene extends Phaser.Scene {
       depth: 500,
     });
     this._addHudIcon(hasArtTexture(this, ART_KEYS.coin) ? ART_KEYS.coin : null, CONFIG.GAME_WIDTH - 196, 48, 42);
-    this._addHudIcon(hasArtTexture(this, ART_KEYS.plusButton) ? ART_KEYS.plusButton : null, CONFIG.GAME_WIDTH - 42, 48, 76);
     this.conveyorLabel = countPill.labelText;
     this.time.addEvent({
       delay: 100,
@@ -619,8 +618,8 @@ export class GameScene extends Phaser.Scene {
 
     const bg = this.add.graphics();
     drawBubblePanel(bg, -300, -42, 600, 84, 24, {
-      fill: UI.PRIMARY,
-      stroke: UI.PRIMARY_DARK,
+      fill: 0x18d84f,
+      stroke: 0x08752d,
       strokeWidth: 4,
       shadowOffset: 7,
       shadowAlpha: 0.18,
