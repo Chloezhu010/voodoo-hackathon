@@ -8,7 +8,7 @@ export const CONFIG = {
 
   HEADER_HEIGHT: 80,
   BOARD_AREA: { x: 60, y: 120, width: 600, height: 540 },
-  FUNNEL_AREA: { x: 260, y: 700, width: 200, height: 160 },
+  FUNNEL_AREA: { x: 220, y: 700, width: 280, height: 160 },
 
   FUNNEL_BUFFER: {
     CAPACITY: 72,

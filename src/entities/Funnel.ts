@@ -131,13 +131,13 @@ export class Funnel {
     const area = CONFIG.FUNNEL_AREA;
     const centerX = this._centerX();
     const neckEndY = area.y + area.height * 0.8;
-    const upperY = area.y + 8;
+    const upperY = area.y - 44;
     const shoulderY = area.y + 78;
     const shoulderHalfWidth = 74;
     const neckHalfWidth = 42;
     const wallSegments = [
       {
-        ax: area.x - 14,
+        ax: area.x,
         ay: upperY,
         bx: centerX - shoulderHalfWidth,
         by: shoulderY,
@@ -149,7 +149,7 @@ export class Funnel {
         by: neckEndY,
       },
       {
-        ax: area.x + area.width + 14,
+        ax: area.x + area.width,
         ay: upperY,
         bx: centerX + shoulderHalfWidth,
         by: shoulderY,
@@ -317,9 +317,9 @@ export class Funnel {
 
   private _entryXs(preferredX = this._centerX()): number[] {
     const centerX = this._centerX();
-    const baseX = clamp(preferredX, centerX - 42, centerX + 42);
-    const offsets = [0, -12, 12, -22, 22, -6, 6, -32, 32];
-    return offsets.map((offset) => clamp(baseX + offset, centerX - 74, centerX + 74));
+    const baseX = clamp(preferredX, centerX - 56, centerX + 56);
+    const offsets = [0, -14, 14, -28, 28, -7, 7, -42, 42];
+    return offsets.map((offset) => clamp(baseX + offset, centerX - 104, centerX + 104));
   }
 
   private _floorY(): number {
