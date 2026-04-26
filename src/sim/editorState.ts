@@ -54,6 +54,7 @@ export class EditorState {
   activeZ = 0;
   activeIsHidden = false;
   eraseMode = false;
+  wallMode = false;
   activeColumn = 0;
 
   constructor({ idGen = defaultIdGen }: EditorStateOptions = {}) {
@@ -66,6 +67,8 @@ export class EditorState {
       this.removeBlock(col, row);
       return;
     }
+
+    if (this.hasWallAt(col, row)) return;
 
     const existing = this.blocks.find(
       (block) => block.col === col && block.row === row && block.z === this.activeZ,
@@ -100,6 +103,29 @@ export class EditorState {
     const top = stack[0]!;
     this.blocks = this.blocks.filter((block) => block.id !== top.id);
     this.syncBoxColumnsToBlocks();
+  }
+
+  hasWallAt(col: number, row: number): boolean {
+    return this.walls.some((wall) => wall.col === col && wall.row === row);
+  }
+
+  hasBlockAt(col: number, row: number): boolean {
+    return this.blocks.some((block) => block.col === col && block.row === row);
+  }
+
+  placeWall(col: number, row: number): boolean {
+    if (this.eraseMode || this.hasWallAt(col, row)) {
+      this.removeWall(col, row);
+      return true;
+    }
+    // Walls and blocks must not share a cell — coverage logic treats both as blocking.
+    if (this.hasBlockAt(col, row)) return false;
+    this.walls.push({ col, row });
+    return true;
+  }
+
+  removeWall(col: number, row: number): void {
+    this.walls = this.walls.filter((wall) => !(wall.col === col && wall.row === row));
   }
 
   setConveyorSpeed(value: number): void {
@@ -206,9 +232,14 @@ export class EditorState {
       .map((column) => `col${column.col}[top->bottom:${column.boxes.join(',') || 'empty'}]`)
       .join('; ');
 
+    const wallSummary = this.walls.length === 0
+      ? 'Walls: none.'
+      : `Walls (${this.walls.length}): ${this.walls.map((wall) => `${wall.col},${wall.row}`).join(' ')}.`;
+
     return [
       `Board ${this.gridCols}x${this.gridRows}, ${this.blocks.length} blocks across ${layeredCells} occupied cells.`,
       `Block colors: ${colorCounts}. Hidden blocks: ${hiddenCount}. Max stack height: ${maxStack}.`,
+      wallSummary,
       `Box columns: ${columns}.`,
       `Conveyor speed: ${this.conveyorSpeed}. Gravity flip: ${this.gravityFlipEnabled ? 'on' : 'off'}. Magnet count: ${this.magnetCount}.`,
       `Validation: ${validation.summary}.`,

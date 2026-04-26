@@ -31,6 +31,8 @@ export class EditorScene extends Phaser.Scene {
   activeTextInput: ActiveTextInput | null = null;
   dragState: DragState | null = null;
   lastPlacedCell: HoverCell | null = null;
+  speedDrag = false;
+  private readonly _speedSlider = { trackLen: 150, min: 0.08, max: 0.40 };
   root!: Phaser.GameObjects.Container;
   briefPanel!: EditorAgentBriefPanel;
   briefOverlay!: AgentBriefOverlay;
@@ -102,7 +104,7 @@ export class EditorScene extends Phaser.Scene {
     this.renderAll();
   }
 
-  renderAll(): void {
+  renderAll(options: { skipSidebars?: boolean } = {}): void {
     if (this.root) this.root.destroy(true);
     this.root = this.add.container(EDITOR_GAME_X, 0);
     this._drawHeader();
@@ -111,7 +113,7 @@ export class EditorScene extends Phaser.Scene {
     this._drawLayerControls();
     this._drawBoxColumnsPanel();
     this._drawParams();
-    this.briefPanel.drawSidebars();
+    if (!options.skipSidebars) this.briefPanel.drawSidebars();
     this._drawIO();
     this.lastPlacedCell = null;
   }
@@ -149,6 +151,8 @@ export class EditorScene extends Phaser.Scene {
       panel.lineBetween(GRID_START.x, y, GRID_START.x + width, y);
     }
     layer.add(panel);
+
+    this._drawWalls(layer);
 
     const stacks = this._getStacks();
     stacks.forEach((stack, key) => {
@@ -198,8 +202,16 @@ export class EditorScene extends Phaser.Scene {
         });
         hit.on('pointerup', () => {
           if (this.dragState?.hasMoved) return;
-          this.editorState.placeBlock(col, row);
-          this.lastPlacedCell = { col, row };
+          if (this.editorState.wallMode) {
+            const placed = this.editorState.placeWall(col, row);
+            if (!placed) {
+              this.showToast('Cell already has a block');
+              return;
+            }
+          } else {
+            this.editorState.placeBlock(col, row);
+            this.lastPlacedCell = { col, row };
+          }
           this.persistState();
           this.renderAll();
         });
@@ -228,6 +240,36 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
+  private _drawWallTile(g: Phaser.GameObjects.Graphics, cx: number, cy: number, alpha = 1): void {
+    const s = EDITOR_BLOCK_SIZE;
+    g.fillStyle(0x3b5c77, alpha);
+    g.fillRoundedRect(cx - s / 2, cy - s / 2, s, s, 6);
+    g.lineStyle(3, 0x254661, alpha < 1 ? 0.7 : 0.94);
+    g.strokeRoundedRect(cx - s / 2, cy - s / 2, s, s, 6);
+  }
+
+  private _drawWalls(layer: Phaser.GameObjects.Container): void {
+    if (this.editorState.walls.length === 0) return;
+    const g = this.add.graphics();
+    this.editorState.walls.forEach((wall) => {
+      const center = this._gridCenter(wall.col, wall.row);
+      this._drawWallTile(g, center.x, center.y);
+    });
+    layer.add(g);
+  }
+
+  private _drawWallGhost(layer: Phaser.GameObjects.Container, cx: number, cy: number, exists: boolean): void {
+    const g = this.add.graphics();
+    if (exists) {
+      const s = EDITOR_BLOCK_SIZE;
+      g.lineStyle(5, 0xff4d6d, 0.85);
+      g.strokeRoundedRect(cx - s / 2, cy - s / 2, s, s, 6);
+    } else {
+      this._drawWallTile(g, cx, cy, 0.45);
+    }
+    layer.add(g);
+  }
+
   private _drawHoverCell(layer: Phaser.GameObjects.Container): void {
     if (!this.hoverCell) return;
     const center = this._gridCenter(this.hoverCell.col, this.hoverCell.row);
@@ -254,6 +296,12 @@ export class EditorScene extends Phaser.Scene {
         14,
       );
       layer.add(erase);
+      return;
+    }
+
+    if (this.editorState.wallMode) {
+      const exists = this.editorState.hasWallAt(this.hoverCell.col, this.hoverCell.row);
+      this._drawWallGhost(layer, center.x, center.y, exists);
       return;
     }
 
@@ -294,15 +342,28 @@ export class EditorScene extends Phaser.Scene {
       this.renderAll();
     }));
 
+    this._drawModeToggles(centerX, y + 184);
+  }
+
+  private _drawModeToggles(centerX: number, y: number): void {
     this.root.add(this._makeSquareSwatch(
-      centerX,
-      y + 184,
-      56,
+      centerX - 30, y, 52,
       this.editorState.eraseMode ? 0xff4d6d : UI.PANEL,
-      'DEL',
-      this.editorState.eraseMode,
+      'DEL', this.editorState.eraseMode,
       () => {
         this.editorState.eraseMode = !this.editorState.eraseMode;
+        if (this.editorState.eraseMode) this.editorState.wallMode = false;
+        this.persistState();
+        this.renderAll();
+      },
+    ));
+    this.root.add(this._makeSquareSwatch(
+      centerX + 30, y, 52,
+      this.editorState.wallMode ? 0x3b5c77 : UI.PANEL,
+      'WALL', this.editorState.wallMode,
+      () => {
+        this.editorState.wallMode = !this.editorState.wallMode;
+        if (this.editorState.wallMode) this.editorState.eraseMode = false;
         this.persistState();
         this.renderAll();
       },
@@ -400,6 +461,62 @@ export class EditorScene extends Phaser.Scene {
     this.root.add([box, label, hit]);
   }
 
+  private _drawSpeedSlider(centerX: number, y: number): void {
+    const { trackLen, min, max } = this._speedSlider;
+    const trackY = y + 50;
+    const value = this.editorState.conveyorSpeed;
+    const t = Phaser.Math.Clamp((value - min) / (max - min), 0, 1);
+    const handleX = centerX - trackLen / 2 + t * trackLen;
+
+    this.root.add(this.add.text(centerX, y + 24, value.toFixed(2), {
+      fontSize: '20px', color: UI.DARK_TEXT, fontStyle: 'bold',
+    }).setOrigin(0.5));
+
+    const track = this.add.graphics();
+    track.fillStyle(UI.PANEL_DARK, 1);
+    track.fillRoundedRect(centerX - trackLen / 2, trackY - 4, trackLen, 8, 4);
+    track.fillStyle(UI.PRIMARY, 1);
+    track.fillRoundedRect(centerX - trackLen / 2, trackY - 4, t * trackLen, 8, 4);
+    this.root.add(track);
+
+    CONVEYOR_SPEED_OPTIONS.forEach((preset) => {
+      const tx = centerX - trackLen / 2 + ((preset - min) / (max - min)) * trackLen;
+      const tick = this.add.graphics();
+      tick.fillStyle(0xffffff, 0.55);
+      tick.fillRect(tx - 1, trackY - 9, 2, 18);
+      this.root.add(tick);
+    });
+
+    const handle = this.add.circle(handleX, trackY, 10, 0xffffff, 1);
+    handle.setStrokeStyle(3, UI.PRIMARY, 1);
+    this.root.add(handle);
+
+    const trackHit = makeWorldHitZone(this, centerX, trackY, trackLen + 24, 32, null);
+    trackHit.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.speedDrag = true;
+      this._setSpeedFromPointer(pointer.x, centerX, trackLen, min, max);
+    });
+    this.root.add(trackHit);
+  }
+
+  private _setSpeedFromPointer(pointerWorldX: number, centerX: number, trackLen: number, min: number, max: number): void {
+    const localX = pointerWorldX - EDITOR_GAME_X;
+    const trackLeft = centerX - trackLen / 2;
+    const t = Phaser.Math.Clamp((localX - trackLeft) / trackLen, 0, 1);
+    const raw = min + t * (max - min);
+    let snapped = Math.round(raw * 100) / 100;
+    for (const preset of CONVEYOR_SPEED_OPTIONS) {
+      if (Math.abs(snapped - preset) < 0.012) {
+        snapped = preset;
+        break;
+      }
+    }
+    if (Math.abs(snapped - this.editorState.conveyorSpeed) < 0.0005) return;
+    this.editorState.setConveyorSpeed(snapped);
+    this.persistState();
+    this.renderAll({ skipSidebars: true });
+  }
+
   private _drawParams(): void {
     const panel = EDITOR_LAYOUT.tools;
     const centerX = panel.x + panel.width / 2;
@@ -407,17 +524,7 @@ export class EditorScene extends Phaser.Scene {
     this.root.add(this.add.text(centerX, y, 'SPEED', {
       fontSize: '16px', color: UI.MUTED_TEXT, fontStyle: 'bold',
     }).setOrigin(0.5));
-
-    CONVEYOR_SPEED_OPTIONS.forEach((value, index) => {
-      const x = centerX + (index % 2 === 0 ? -21 : 21);
-      const rowY = y + 32 + Math.floor(index / 2) * 34;
-      const active = Math.abs(this.editorState.conveyorSpeed - value) < 0.001;
-      this.root.add(this.makeButton(x, rowY, 40, 28, value.toFixed(2), active ? UI.PRIMARY : UI.PANEL_DARK, () => {
-        this.editorState.setConveyorSpeed(value);
-        this.persistState();
-        this.renderAll();
-      }));
-    });
+    this._drawSpeedSlider(centerX, y);
 
     const checkX = centerX - 23;
     const checkY = panel.y + 460;
@@ -510,6 +617,7 @@ export class EditorScene extends Phaser.Scene {
       if (this.dragState?.hasMoved) return;
       this.editorState.activeColor = colorId;
       this.editorState.eraseMode = false;
+      this.editorState.wallMode = false;
       this.persistState();
       this.renderAll();
     });
@@ -525,6 +633,7 @@ export class EditorScene extends Phaser.Scene {
     this._clearDragPreview();
     this.editorState.activeColor = color;
     this.editorState.eraseMode = false;
+    this.editorState.wallMode = false;
     const preview = Block.createVisual(this, color, {
       size: EDITOR_BLOCK_SIZE,
       showQuestion: this.editorState.activeIsHidden,
@@ -543,6 +652,13 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _handlePointerMove(pointer: Phaser.Input.Pointer): void {
+    if (this.speedDrag) {
+      const panel = EDITOR_LAYOUT.tools;
+      const centerX = panel.x + panel.width / 2;
+      const { trackLen, min, max } = this._speedSlider;
+      this._setSpeedFromPointer(pointer.x, centerX, trackLen, min, max);
+      return;
+    }
     const drag = this.dragState;
     if (drag) {
       if (Phaser.Math.Distance.Between(drag.startX, drag.startY, pointer.x, pointer.y) > 8) {
@@ -550,7 +666,7 @@ export class EditorScene extends Phaser.Scene {
       }
       if (this._syncDragPreview(pointer, drag)) {
         this.hoverCell = drag.targetCell;
-        this.renderAll();
+        this.renderAll({ skipSidebars: true });
       }
       return;
     }
@@ -560,7 +676,7 @@ export class EditorScene extends Phaser.Scene {
       (cell?.row ?? null) !== (this.hoverCell?.row ?? null);
     if (changed) {
       this.hoverCell = cell;
-      this.renderAll();
+      this.renderAll({ skipSidebars: true });
     }
   }
 
@@ -579,6 +695,11 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private _handlePointerUp(pointer: Phaser.Input.Pointer): void {
+    if (this.speedDrag) {
+      this.speedDrag = false;
+      this.renderAll();
+      return;
+    }
     if (!this.dragState) return;
     const drag = this.dragState;
     const cell = this._pointToGridCell(pointer.x, pointer.y);

@@ -103,6 +103,7 @@ function buildPrompt(levelData: LevelData, validation: EditorValidationStatus, l
     'Use these role lenses: level designer, gameplay tester, product manager, balancing critic, iteration partner.',
     'Rules: each block contains 9 marbles of its color; each box holds 3 marbles; box columns list boxes top-to-bottom.',
     'Coordinates are zero-based. If multiple blocks share a cell, higher z is on top. Hidden blocks conceal color until revealed.',
+    'Walls (levelData.walls) are static obstacle cells: they cannot hold blocks, and for the coverage rule they count as blocking neighbors. A block surrounded by walls/blocks/edges on all four sides is enclosed and cannot be selected until at least one neighbor clears. Use wall placement to gate which blocks are reachable first and to author the puzzle order.',
     'Answer whether the level seems solvable, where players may get stuck, whether difficulty is fair, whether there is a reveal or payoff, whether mechanics are readable, and whether the level belongs early, middle, late, or should be cut.',
     '',
     `Local editor brief: ${localBrief}`,
@@ -181,12 +182,15 @@ function deriveLevelStats(levelData: LevelData, validation: EditorValidationStat
     });
   });
 
+  const walls = levelData.walls ?? [];
   return {
     boardSize: levelData.board_size,
     blockCount: levelData.blocks.length,
     occupiedCells: stacks.size,
     maxStackHeight: Math.max(0, ...stacks.values()),
     hiddenBlocks: levelData.blocks.filter((block) => block.is_hidden).length,
+    wallCount: walls.length,
+    walls: walls.map((wall) => ({ col: wall.col, row: wall.row })),
     blockCounts,
     marbleCounts: multiplyCounts(blockCounts, 9),
     boxSlots,
