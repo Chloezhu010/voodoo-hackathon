@@ -8,11 +8,11 @@ export const CONFIG = {
 
   HEADER_HEIGHT: 80,
   BOARD_AREA: { x: 60, y: 120, width: 600, height: 540 },
-  FUNNEL_AREA: { x: 220, y: 620, width: 280, height: 250 },
+  FUNNEL_AREA: { x: 260, y: 700, width: 200, height: 160 },
 
   FUNNEL_BUFFER: {
     CAPACITY: 72,
-    MOUTH_Y_OFFSET: -22,
+    MOUTH_Y_OFFSET: -12,
     ENTRY_SPEED: 760,
     GRAVITY: 2600,
     MAX_SPEED: 1500,
@@ -25,7 +25,7 @@ export const CONFIG = {
   },
 
   CONVEYOR: {
-    AREA: { x: 40, y: 760, width: 640, height: 320 },
+    AREA: { x: 40, y: 740, width: 640, height: 320 },
     SLOTS_PER_LAYER: 12,
     TOTAL_CAPACITY: 24,
     DEFAULT_SPEED: 0.18,
@@ -46,7 +46,7 @@ export const CONFIG = {
   },
 
   BOX_COLUMNS: {
-    AREA: { x: 40, y: 1080, width: 640, height: 180 },
+    AREA: { x: 40, y: 1030, width: 640, height: 180 },
     BOX_WIDTH: 100,
     BOX_HEIGHT: 50,
     BOX_GAP: 4,

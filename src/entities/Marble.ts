@@ -25,6 +25,7 @@ export class Marble {
   sprite: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image | null;
   private _flightId = 0;
   private _flightGuard: Phaser.Time.TimerEvent | null = null;
+  private _flightTweenTarget: object | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, color: ColorId) {
     this.scene = scene;
@@ -72,18 +73,12 @@ export class Marble {
       completed = true;
       this.sprite.x = targetX;
       this.sprite.y = targetY;
-      if (this._flightGuard) {
-        this._flightGuard.remove(false);
-        this._flightGuard = null;
-      }
+      this._clearFlightGuard();
+      this._flightTweenTarget = null;
       if (onComplete) onComplete();
     };
 
-    this.scene.tweens.killTweensOf(this.sprite);
-    if (this._flightGuard) {
-      this._flightGuard.remove(false);
-      this._flightGuard = null;
-    }
+    this._cancelFlightTween();
 
     const tween = this.scene.tweens.add({
       targets: this.sprite,
@@ -91,6 +86,44 @@ export class Marble {
       y: targetY,
       duration,
       ease,
+      onComplete: completeFlight,
+    });
+    this._flightGuard = this.scene.time.delayedCall(duration + 120, completeFlight);
+    return tween;
+  }
+
+  followPath(
+    duration: number,
+    updatePosition: (t: number) => void,
+    ease: string = 'Linear',
+    onComplete: (() => void) | null = null,
+  ): Phaser.Tweens.Tween | undefined {
+    if (!this.sprite || this.state === 'destroyed') return undefined;
+    this._flightId += 1;
+    const flightId = this._flightId;
+    const progress = { t: 0 };
+    let completed = false;
+
+    const completeFlight = (): void => {
+      if (completed || this._flightId !== flightId || !this.sprite || this.state === 'destroyed') return;
+      completed = true;
+      updatePosition(1);
+      this._clearFlightGuard();
+      this._flightTweenTarget = null;
+      if (onComplete) onComplete();
+    };
+
+    this._cancelFlightTween();
+    this._flightTweenTarget = progress;
+    const tween = this.scene.tweens.add({
+      targets: progress,
+      t: 1,
+      duration,
+      ease,
+      onUpdate: () => {
+        if (this._flightId !== flightId || !this.sprite || this.state === 'destroyed') return;
+        updatePosition(progress.t);
+      },
       onComplete: completeFlight,
     });
     this._flightGuard = this.scene.time.delayedCall(duration + 120, completeFlight);
@@ -114,9 +147,24 @@ export class Marble {
       this._flightGuard = null;
     }
     if (this.sprite) {
-      this.scene.tweens.killTweensOf(this.sprite);
+      this._cancelFlightTween();
       this.sprite.destroy();
       this.sprite = null;
     }
+  }
+
+  private _cancelFlightTween(): void {
+    if (this.sprite) this.scene.tweens.killTweensOf(this.sprite);
+    if (this._flightTweenTarget) {
+      this.scene.tweens.killTweensOf(this._flightTweenTarget);
+      this._flightTweenTarget = null;
+    }
+    this._clearFlightGuard();
+  }
+
+  private _clearFlightGuard(): void {
+    if (!this._flightGuard) return;
+    this._flightGuard.remove(false);
+    this._flightGuard = null;
   }
 }

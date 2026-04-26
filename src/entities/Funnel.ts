@@ -36,12 +36,12 @@ export class Funnel {
     this.graphics.clear();
   }
 
-  reserveSlot(marble: Marble): FunnelSlot {
+  reserveSlot(marble: Marble, preferredX?: number): FunnelSlot {
     this._prune();
 
     this.reservedMarbles.add(marble);
     const sequence = this._sequence;
-    const entryXs = this._entryXs();
+    const entryXs = this._entryXs(preferredX);
     const entryX = entryXs[sequence % entryXs.length]!;
     this._sequence += 1;
     marble.funnelSlotIndex = sequence;
@@ -130,31 +130,35 @@ export class Funnel {
   private _collideWalls(particle: FunnelParticle): void {
     const area = CONFIG.FUNNEL_AREA;
     const centerX = this._centerX();
-    const neckBottomY = this._floorY() + CONFIG.MARBLE_RADIUS * 0.25;
+    const neckEndY = area.y + area.height * 0.8;
+    const upperY = area.y + 8;
+    const shoulderY = area.y + 78;
+    const shoulderHalfWidth = 74;
+    const neckHalfWidth = 42;
     const wallSegments = [
       {
-        ax: area.x - 10,
-        ay: area.y + 18,
-        bx: centerX - 92,
-        by: area.y + area.height * 0.62,
+        ax: area.x - 14,
+        ay: upperY,
+        bx: centerX - shoulderHalfWidth,
+        by: shoulderY,
       },
       {
-        ax: centerX - 92,
-        ay: area.y + area.height * 0.62,
-        bx: centerX - 56,
-        by: neckBottomY,
+        ax: centerX - shoulderHalfWidth,
+        ay: shoulderY,
+        bx: centerX - neckHalfWidth,
+        by: neckEndY,
       },
       {
-        ax: area.x + area.width + 10,
-        ay: area.y + 18,
-        bx: centerX + 92,
-        by: area.y + area.height * 0.62,
+        ax: area.x + area.width + 14,
+        ay: upperY,
+        bx: centerX + shoulderHalfWidth,
+        by: shoulderY,
       },
       {
-        ax: centerX + 92,
-        ay: area.y + area.height * 0.62,
-        bx: centerX + 56,
-        by: neckBottomY,
+        ax: centerX + shoulderHalfWidth,
+        ay: shoulderY,
+        bx: centerX + neckHalfWidth,
+        by: neckEndY,
       },
     ];
 
@@ -311,20 +315,11 @@ export class Funnel {
     return true;
   }
 
-  private _entryXs(): number[] {
-    const area = CONFIG.FUNNEL_AREA;
+  private _entryXs(preferredX = this._centerX()): number[] {
     const centerX = this._centerX();
-    return [
-      centerX,
-      area.x + area.width * 0.14,
-      area.x + area.width * 0.86,
-      area.x + area.width * 0.08,
-      area.x + area.width * 0.92,
-      centerX - 34,
-      centerX + 34,
-      area.x + area.width * 0.26,
-      area.x + area.width * 0.74,
-    ];
+    const baseX = clamp(preferredX, centerX - 42, centerX + 42);
+    const offsets = [0, -12, 12, -22, 22, -6, 6, -32, 32];
+    return offsets.map((offset) => clamp(baseX + offset, centerX - 74, centerX + 74));
   }
 
   private _floorY(): number {
@@ -346,4 +341,8 @@ export class Funnel {
       particle.marble && particle.marble.state !== 'destroyed'
     ));
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
