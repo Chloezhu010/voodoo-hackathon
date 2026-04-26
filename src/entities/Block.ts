@@ -23,6 +23,7 @@ export interface BlockVisualOptions {
   showQuestion?: boolean;
   covered?: boolean;
   showMarbles?: boolean;
+  masked?: boolean;
   alpha?: number;
 }
 
@@ -33,6 +34,7 @@ export class Block {
   isCovered = false;
   isCleared = false;
   private _inputEnabled: boolean | null = null;
+  private _isRevealed: boolean;
   container: Phaser.GameObjects.Container | null;
   visualLayer: Phaser.GameObjects.Container | null;
   hitZone: Phaser.GameObjects.Zone | null;
@@ -41,6 +43,7 @@ export class Block {
     this.scene = scene;
     this.data = data;
     this.boardSize = boardSize;
+    this._isRevealed = !Boolean(data.starts_concealed);
 
     const position = Block.getBoardPosition(data.col, data.row, boardSize);
     this.container = scene.add.container(position.x, position.y);
@@ -74,10 +77,11 @@ export class Block {
     const radius = options.radius ?? Math.round(size * 0.17);
     const colorDef = getColorDefinition(colorId);
     const showQuestion = Boolean(options.showQuestion);
+    const masked = Boolean(options.masked);
     const isCovered = Boolean(options.covered);
     const showMarbles = options.showMarbles ?? (!showQuestion && !isCovered);
     const alpha = options.alpha ?? 1;
-    const fill = showQuestion ? 0xaebbd0 : colorDef.hex;
+    const fill = showQuestion || masked ? 0xaebbd0 : colorDef.hex;
 
     const container = scene.add.container(0, 0);
     container.setAlpha(alpha);
@@ -127,9 +131,9 @@ export class Block {
           const cy = trayY + size * 0.2 + row * spacing;
           g.fillStyle(0x000000, 0.12);
           g.fillCircle(cx + size * 0.025, cy + size * 0.04, marbleRadius);
-          g.fillStyle(colorDef.hex, 1);
+          g.fillStyle(masked ? 0xd7dde8 : colorDef.hex, 1);
           g.fillCircle(cx, cy, marbleRadius);
-          g.fillStyle(0xffffff, 0.24);
+          g.fillStyle(masked ? 0xffffff : 0xffffff, masked ? 0.18 : 0.24);
           g.fillCircle(cx - marbleRadius * 0.32, cy - marbleRadius * 0.32, marbleRadius * 0.34);
         }
       }
@@ -168,6 +172,16 @@ export class Block {
   render(): void {
     if (!this.visualLayer) return;
     this.visualLayer.removeAll(true);
+
+    if (!this._isRevealed) {
+      const visual = Block.createVisual(this.scene, this.data.color, {
+        showQuestion: true,
+        size: CONFIG.BLOCK_SIZE,
+      });
+      this.visualLayer.add(visual);
+      this.visualLayer.setAlpha(1);
+      return;
+    }
 
     const showQuestion = Boolean(this.data.is_hidden) && this.isCovered;
     const visual = Block.createVisual(this.scene, this.data.color, {
@@ -252,6 +266,7 @@ export class Block {
   refreshInteractivity(): boolean {
     // 可点击必须同时满足三个守卫：未被遮挡且未清除、GameScene 未输入锁、未来 GravityFlip 未处于翻转中。
     const canInteract = !this.isCovered
+      && this._isRevealed
       && !this.isCleared
       && !this.scene._inputLocked
       && !this.scene.gravityFlip?.isFlipping;
@@ -285,6 +300,17 @@ export class Block {
       duration: 260,
       ease: 'Back.easeOut',
     });
+  }
+
+  isConcealed(): boolean {
+    return !this._isRevealed && !this.isCleared;
+  }
+
+  revealConcealed(): boolean {
+    if (this._isRevealed || !this.data.starts_concealed || this.isCleared) return false;
+    this._isRevealed = true;
+    this.reveal();
+    return true;
   }
 
   shatter(): void {

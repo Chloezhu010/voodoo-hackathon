@@ -12,9 +12,6 @@
     { "id": "b6", "col": 3, "row": 2, "z": 0, "color": "blue", "is_hidden": false }
   ],
   "walls": [
-    { "col": 1, "row": 0 },
-    { "col": 2, "row": 0 },
-    { "col": 3, "row": 0 },
     { "col": 0, "row": 1 },
     { "col": 4, "row": 1 },
     { "col": 0, "row": 2 },

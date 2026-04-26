@@ -12,6 +12,8 @@ export interface BlockRecord {
   z: number;
   color: ColorId;
   is_hidden?: boolean;
+  starts_concealed?: boolean;
+  revealed_by?: string;
   isCleared?: boolean;
 }
 

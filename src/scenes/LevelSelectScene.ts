@@ -14,7 +14,7 @@ interface LevelEntry {
 
 const LEVELS: readonly LevelEntry[] = [
   { id: 1, number: '01', name: 'Tutorial', difficulty: 'Easy', stars: '★☆☆', hook: 'Learn the basics' },
-  { id: 2, number: '02', name: 'Hidden Layers', difficulty: 'Medium', stars: '★★☆', hook: "Reveal what's beneath" },
+  { id: 2, number: '02', name: 'Hidden Blocks', difficulty: 'Medium', stars: '★★☆', hook: "Reveal what's beneath" },
   { id: 3, number: '03', name: 'Gravity Flip', difficulty: 'Hard', stars: '★★★', hook: 'Twist the world' },
 ];
 
