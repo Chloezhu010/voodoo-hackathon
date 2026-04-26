@@ -3,6 +3,7 @@ import type { ColorId } from '../sim/types.js';
 
 export const ART_KEYS = {
   sky: 'art:background/sky',
+  homeBackground: 'art:background/home-background',
   playfieldShell: 'art:board/playfield-shell 1',
   conveyorDock: 'art:board/conveyor-dock',
   boxColumnDock: 'art:board/box-column-dock',
@@ -26,6 +27,7 @@ export const ART_KEYS = {
 
 const STATIC_ART_PATHS = [
   'background/sky.svg',
+  'background/home-background.png',
   'board/playfield-shell 1.svg',
   'board/wall-region-sample.svg',
   'board/funnel-mouth.svg',
@@ -59,7 +61,7 @@ const STATIC_ART_PATHS = [
 ] as const;
 
 function textureKey(path: string): string {
-  return `art:${path.replace(/\.svg$/, '')}`;
+  return `art:${path.replace(/\.(png|svg)$/, '')}`;
 }
 
 function assetUrl(path: string): string {
@@ -102,6 +104,11 @@ export function preloadArtAssets(scene: Phaser.Scene): void {
 
   paths.forEach((path) => {
     const key = textureKey(path);
-    if (!scene.textures.exists(key)) scene.load.svg(key, assetUrl(path));
+    if (scene.textures.exists(key)) return;
+    if (path.endsWith('.svg')) {
+      scene.load.svg(key, assetUrl(path));
+      return;
+    }
+    scene.load.image(key, assetUrl(path));
   });
 }
