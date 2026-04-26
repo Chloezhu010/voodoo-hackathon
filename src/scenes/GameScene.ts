@@ -140,10 +140,9 @@ export class GameScene extends Phaser.Scene {
     g.setDepth(0);
 
     if (hasArtTexture(this, ART_KEYS.playfieldShell)) {
-      this.add.image(0, 0, ART_KEYS.playfieldShell)
-        .setOrigin(0)
-        .setDisplaySize(CONFIG.GAME_WIDTH, 1148)
-        .setDepth(0);
+      const shell = this.add.image(0, 0, ART_KEYS.playfieldShell).setOrigin(0).setDepth(0);
+      const shellHeight = CONFIG.GAME_WIDTH * (shell.height / shell.width);
+      shell.setDisplaySize(CONFIG.GAME_WIDTH, shellHeight);
     } else {
       this._drawPlayfieldShell(g);
       this._drawConveyorDock(g);

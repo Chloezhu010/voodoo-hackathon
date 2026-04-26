@@ -3,7 +3,7 @@ import type { ColorId } from '../sim/types.js';
 
 export const ART_KEYS = {
   sky: 'art:background/sky',
-  playfieldShell: 'art:board/playfield-shell',
+  playfieldShell: 'art:board/playfield-shell 1',
   conveyorDock: 'art:board/conveyor-dock',
   boxColumnDock: 'art:board/box-column-dock',
   blockHidden: 'art:blocks/block-hidden',
@@ -26,7 +26,7 @@ export const ART_KEYS = {
 
 const STATIC_ART_PATHS = [
   'background/sky.svg',
-  'board/playfield-shell.svg',
+  'board/playfield-shell 1.svg',
   'board/wall-region-sample.svg',
   'board/funnel-mouth.svg',
   'board/conveyor-dock.svg',
